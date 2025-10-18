@@ -311,7 +311,7 @@ mt/
 │   ├── README.md                # Complete migration documentation
 │   ├── db-migration-helper.sh   # Migration utility functions
 │   └── migrate-db.py            # Python data migration script
-├── SYNC/                        # ⭐ NEW: SQLite + Supabase Sync System (Phase 1)
+├── SYNC/                        # ⭐ SQLite + Supabase Sync System (Phase 1)
 │   ├── README.md                # Complete sync system documentation
 │   ├── python/                  # FastAPI application and sync modules
 │   ├── scripts/                 # Deployment and sync automation
@@ -321,12 +321,13 @@ mt/
 │   ├── README.md                # Testing methodology and documentation
 │   ├── sync-security-validation.py  # SYNC security tests (✅ all passing)
 │   └── run-certification.sh     # Batch test runner (future)
-├── nginx-template.conf          # Production nginx config template
-├── nginx-template-local.conf    # Local testing nginx config
-├── docker-compose.nginx.yml     # Local nginx setup
-└── nginx/                       # Local nginx configurations
-    ├── sites-available/
-    └── sites-enabled/
+└── nginx-container/             # ⭐ Containerized nginx for Multi-Tenant Setup
+    ├── README.md                # Complete nginx container documentation
+    ├── MANUAL_SSL_SETUP.md      # SSL troubleshooting guide
+    ├── deploy-nginx-container.sh             # Deploy nginx container
+    ├── create-ssl-options.sh                 # Generate SSL config files
+    ├── nginx-template-containerized.conf     # HTTPS template (with SSL)
+    └── nginx-template-containerized-http-only.conf  # HTTP-only template (pre-SSL)
 ```
 
 ## Container Naming Convention
@@ -404,16 +405,50 @@ docker ps --format "table {{.Names}}\t{{.Ports}}"
 sudo lsof -i :8083
 ```
 
-## nginx Configuration
+## nginx Configuration & HTTPS Setup
 
-For each client, add an nginx server block:
+### Containerized nginx (Recommended)
+
+**For production deployments with automated SSL setup**, use containerized nginx:
+
+```bash
+cd mt/nginx-container
+sudo ./deploy-nginx-container.sh
+
+# Then use client-manager.sh to configure clients with automatic HTTPS
+cd ..
+./client-manager.sh
+# Choose option 5: "Generate nginx config for existing client"
+```
+
+**📖 [Complete nginx Container Documentation →](nginx-container/README.md)**
+
+The nginx-container folder includes:
+- **Automated SSL certificate generation** with Let's Encrypt
+- **HTTP to HTTPS migration** workflow
+- **Container-to-container networking** for better security
+- **Pre-built configuration templates** for HTTP and HTTPS
+- **Comprehensive troubleshooting guide** (MANUAL_SSL_SETUP.md)
+
+### Host nginx (Legacy)
+
+If using nginx directly on the host (not containerized), add a server block for each client:
 
 ```nginx
 server {
-    listen 443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
     server_name acme.yourdomain.com;
 
-    # SSL configuration here...
+    # SSL certificates
+    ssl_certificate /etc/letsencrypt/live/acme.yourdomain.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/acme.yourdomain.com/privkey.pem;
+
+    # SSL configuration
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
 
     location / {
         proxy_pass http://localhost:8081;
@@ -424,6 +459,8 @@ server {
     }
 }
 ```
+
+**Note**: Containerized nginx is recommended for easier management and automated SSL setup.
 
 ## OAuth Configuration
 
@@ -1308,9 +1345,27 @@ chmod +x *.sh
 
 ## Production Deployment
 
-1. Update domain names in client scripts
-2. Configure nginx for each client domain
-3. Update Google OAuth redirect URIs
-4. Set up SSL certificates for each domain
-5. Configure firewall rules
-6. Set up monitoring and backups
+### Quick Start (Automated)
+
+```bash
+# 1. Deploy containerized nginx
+cd mt/nginx-container
+sudo ./deploy-nginx-container.sh
+
+# 2. Deploy and configure clients with automated HTTPS
+cd ..
+./client-manager.sh
+# Choose "Deploy new client" and follow the prompts
+# SSL certificates are generated automatically
+```
+
+### Detailed Steps
+
+1. **Deploy nginx Container**: See [nginx-container/README.md](nginx-container/README.md)
+2. **Deploy Client Containers**: Use client-manager.sh for automated setup
+3. **Configure HTTPS**: Automated through client-manager.sh (see [MANUAL_SSL_SETUP.md](nginx-container/MANUAL_SSL_SETUP.md) for manual setup)
+4. **Update Google OAuth redirect URIs**: Add client domains to Google Cloud Console
+5. **Configure firewall rules**: Allow ports 80, 443 for HTTPS
+6. **Set up monitoring and backups**: See [tests/README.md](tests/README.md) for monitoring setup
+
+**📖 For complete HTTPS setup documentation**, see [nginx-container/README.md](nginx-container/README.md)

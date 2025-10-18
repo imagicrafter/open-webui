@@ -2,6 +2,25 @@
 
 This directory contains tools and scripts for deploying nginx as a Docker container to serve as a reverse proxy for multiple Open WebUI instances.
 
+## 🚀 Quick Start (Automated)
+
+**The easiest way to set up nginx and SSL for clients is through the client-manager.sh script**, which automates the entire process:
+
+```bash
+cd /path/to/open-webui/mt
+./client-manager.sh
+
+# Choose option 5: "Generate nginx config for existing client"
+# The script will:
+# - Auto-detect if SSL certificates exist
+# - Deploy HTTP-only config (if no SSL) or HTTPS config (if SSL exists)
+# - Auto-generate SSL certificates with certbot
+# - Auto-update config after SSL obtained
+# - Auto-test and reload nginx
+```
+
+**For troubleshooting or manual setup**, see [MANUAL_SSL_SETUP.md](MANUAL_SSL_SETUP.md).
+
 ## Overview
 
 **Why Containerized nginx?**
@@ -10,6 +29,7 @@ This directory contains tools and scripts for deploying nginx as a Docker contai
 - **Container-to-Container Communication**: Direct networking between nginx and Open WebUI containers without exposing ports to the host
 - **Simplified Management**: All configuration in one directory structure
 - **Docker Network Benefits**: Automatic DNS resolution, network isolation, and service discovery
+- **Automated SSL Setup**: Built-in integration with Let's Encrypt for HTTPS
 
 ## Architecture
 
@@ -49,12 +69,15 @@ This directory contains tools and scripts for deploying nginx as a Docker contai
 
 ```
 mt/nginx-container/
-├── README.md                           # This file
-├── deploy-nginx-container.sh           # Main deployment script
-├── migrate-containers-to-network.sh    # Migrate Open WebUI containers to custom network
-├── convert-nginx-configs.sh            # Convert existing configs to container format
-└── ../nginx-template-containerized.conf # nginx config template for containers
+├── README.md                                    # This file
+├── MANUAL_SSL_SETUP.md                          # Comprehensive troubleshooting guide
+├── deploy-nginx-container.sh                    # Main deployment script
+├── create-ssl-options.sh                        # Generate SSL configuration files
+├── nginx-template-containerized.conf            # HTTPS nginx config template (with SSL)
+└── nginx-template-containerized-http-only.conf  # HTTP-only nginx config template (pre-SSL)
 ```
+
+**Note**: The client-manager.sh script (in mt/) handles all configuration generation and deployment automatically.
 
 ## Prerequisites
 
@@ -212,14 +235,18 @@ server {
 }
 
 server {
-    listen 443 ssl http2;
-    listen [::]:443 ssl http2;
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
     server_name chat.quantabase.io;
 
     ssl_certificate /etc/letsencrypt/live/chat.quantabase.io/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/chat.quantabase.io/privkey.pem;
-    include /etc/letsencrypt/options-ssl-nginx.conf;
-    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # SSL configuration (inline)
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_prefer_server_ciphers on;
 
     location / {
         # Use container name instead of localhost:PORT
@@ -328,93 +355,13 @@ docker run --rm \
 # (Redeploy nginx or update mounts)
 ```
 
-## Migration Scenarios
+## Fresh Deployment
 
-### Scenario 1: Migrate Existing Host nginx Setup
-
-**Current State:**
-- nginx running on host via systemd
-- Configs in `/etc/nginx/sites-available/`
-- Open WebUI containers with port mappings (8081, 8082, etc.)
-- SSL certificates in `/etc/letsencrypt/`
-
-**Migration Steps:**
-
-1. **Deploy nginx Container** (without stopping host nginx yet):
-   ```bash
-   sudo ./deploy-nginx-container.sh
-   ```
-
-2. **Convert Existing Configs**:
-   ```bash
-   sudo ./convert-nginx-configs.sh /etc/nginx/sites-available /opt/openwebui-nginx/conf.d
-   ```
-
-3. **Review Converted Configs**:
-   ```bash
-   # Check conversions
-   ls -la /opt/openwebui-nginx/conf.d/
-
-   # Verify proxy_pass directives changed from localhost:PORT to container:8080
-   cat /opt/openwebui-nginx/conf.d/chat.quantabase.io.conf | grep proxy_pass
-   ```
-
-4. **Connect Containers to Custom Network**:
-   ```bash
-   sudo ./migrate-containers-to-network.sh
-   # Choose Option 1 (keep port mappings for rollback safety)
-   ```
-
-5. **Test nginx Container Configuration**:
-   ```bash
-   docker exec openwebui-nginx nginx -t
-   ```
-
-6. **Test Connectivity**:
-   ```bash
-   # From nginx container to Open WebUI container
-   docker exec openwebui-nginx ping -c 2 openwebui-chat-quantabase-io
-
-   # Check if container is reachable on port 8080
-   docker exec openwebui-nginx wget -O- http://openwebui-chat-quantabase-io:8080/health
-   ```
-
-7. **Switch Traffic** (only after testing):
-   ```bash
-   # Stop host nginx
-   sudo systemctl stop nginx
-   sudo systemctl disable nginx
-
-   # Reload nginx container (it's already listening on 80/443)
-   docker exec openwebui-nginx nginx -s reload
-   ```
-
-8. **Verify Production Traffic**:
-   ```bash
-   # Test from external client
-   curl -I https://chat.quantabase.io
-
-   # Check nginx logs
-   docker logs -f openwebui-nginx
-   ```
-
-9. **Clean Up** (optional, after confirming everything works):
-   ```bash
-   # Recreate containers without port mappings for security
-   sudo ./migrate-containers-to-network.sh
-   # Choose Option 2 this time
-   ```
-
-### Scenario 2: Fresh Deployment
-
-**Current State:**
-- Clean server or no existing Open WebUI deployment
-- Want containerized setup from the start
-
-**Deployment Steps:**
+**For new setups**, deploy nginx container first, then create Open WebUI containers on the custom network:
 
 1. **Deploy nginx Container**:
    ```bash
+   cd /path/to/open-webui/mt/nginx-container
    sudo ./deploy-nginx-container.sh
    ```
 
@@ -423,27 +370,10 @@ docker run --rm \
    cd /path/to/open-webui/mt
    ./client-manager.sh
    # Choose "Deploy new client"
-   # Script auto-detects nginx container
+   # Script auto-detects nginx container and configures everything
    ```
 
-   Or manually:
-   ```bash
-   docker run -d \
-       --name openwebui-chat-quantabase-io \
-       --network openwebui-network \
-       -e FQDN="chat.quantabase.io" \
-       -e CLIENT_NAME="chat" \
-       -e GOOGLE_CLIENT_ID="your_client_id" \
-       -e GOOGLE_CLIENT_SECRET="your_secret" \
-       -e GOOGLE_REDIRECT_URI="https://chat.quantabase.io/oauth/google/callback" \
-       -v openwebui-chat-quantabase-io-data:/app/backend/data \
-       --restart unless-stopped \
-       ghcr.io/imagicrafter/open-webui:main
-   ```
-
-3. **Configure nginx** (see step 3 in Quick Start)
-
-4. **Set Up SSL** (see step 4 in Quick Start)
+3. **Configure HTTPS** (automated through client-manager.sh or see [MANUAL_SSL_SETUP.md](MANUAL_SSL_SETUP.md))
 
 ## Verification & Testing
 
@@ -517,6 +447,24 @@ docker logs --tail 100 openwebui-nginx
 
 ### Add New Client
 
+**Recommended: Use client-manager.sh (Fully Automated)**
+
+```bash
+cd /path/to/open-webui/mt
+./client-manager.sh
+
+# Choose "Deploy new client" or "Generate nginx config for existing client"
+# The script handles everything:
+# - Detects if nginx container is running
+# - Creates HTTP-only or HTTPS config based on SSL availability
+# - Optionally generates SSL certificates with certbot
+# - Auto-deploys, tests, and reloads nginx configuration
+```
+
+**Manual Method (For Advanced Users)**
+
+If you need manual control:
+
 ```bash
 # 1. Deploy Open WebUI container on custom network
 docker run -d \
@@ -528,22 +476,29 @@ docker run -d \
     --restart unless-stopped \
     ghcr.io/imagicrafter/open-webui:main
 
-# 2. Create nginx config
+# 2. Generate nginx config (HTTP-only first)
+# Use template at: nginx-template-containerized-http-only.conf
 sudo nano /opt/openwebui-nginx/conf.d/docs.example.com.conf
-# (Add config using template above)
 
 # 3. Test and reload
 docker exec openwebui-nginx nginx -t
 docker exec openwebui-nginx nginx -s reload
 
-# 4. Set up SSL
+# 4. Set up SSL with certbot
 sudo certbot certonly --webroot \
     -w /opt/openwebui-nginx/webroot \
     -d docs.example.com
 
-# 5. Update nginx config with SSL paths and reload
+# 5. Update nginx config to HTTPS version
+# Use template at: nginx-template-containerized.conf
+sudo nano /opt/openwebui-nginx/conf.d/docs.example.com.conf
+
+# 6. Test and reload again
+docker exec openwebui-nginx nginx -t
 docker exec openwebui-nginx nginx -s reload
 ```
+
+**See [MANUAL_SSL_SETUP.md](MANUAL_SSL_SETUP.md) for detailed troubleshooting.**
 
 ### Update nginx Container
 
