@@ -152,6 +152,18 @@ create_new_deployment() {
         fi
     fi
 
+    # Get OAuth allowed domains
+    echo
+    echo -n "Enter OAuth allowed domains (press Enter for 'martins.net'): "
+    read oauth_domains
+
+    if [[ -z "$oauth_domains" ]]; then
+        oauth_domains="martins.net"
+    fi
+
+    # Generate WEBUI_SECRET_KEY for OAuth session encryption
+    webui_secret_key=$(openssl rand -base64 32)
+
     # Sanitize domain for container naming (replace dots and colons with dashes)
     sanitized_fqdn=$(echo "$resolved_domain" | sed 's/\./-/g' | sed 's/:/-/g')
     container_name="openwebui-${sanitized_fqdn}"
@@ -171,13 +183,14 @@ create_new_deployment() {
     echo "╔════════════════════════════════════════╗"
     echo "║         Deployment Summary             ║"
     echo "╚════════════════════════════════════════╝"
-    echo "Client Name:   $client_name"
-    echo "FQDN:          $resolved_domain"
-    echo "Container:     $container_name"
-    echo "Port:          $port"
-    echo "Environment:   $environment"
-    echo "Redirect URI:  $redirect_uri"
-    echo "Volume:        $volume_name"
+    echo "Client Name:     $client_name"
+    echo "FQDN:            $resolved_domain"
+    echo "Container:       $container_name"
+    echo "Port:            $port"
+    echo "Environment:     $environment"
+    echo "Redirect URI:    $redirect_uri"
+    echo "OAuth Domains:   $oauth_domains"
+    echo "Volume:          $volume_name"
     echo
     echo -n "Create this deployment? (y/N): "
     read confirm
@@ -187,8 +200,8 @@ create_new_deployment() {
         echo "Creating deployment..."
 
         # Create the deployment using the template script
-        # Pass: CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN
-        "${SCRIPT_DIR}/start-template.sh" "$client_name" "$port" "$resolved_domain" "$container_name" "$resolved_domain"
+        # Pass: CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN OAUTH_DOMAINS WEBUI_SECRET_KEY
+        "${SCRIPT_DIR}/start-template.sh" "$client_name" "$port" "$resolved_domain" "$container_name" "$resolved_domain" "$oauth_domains" "$webui_secret_key"
 
         if [ $? -eq 0 ]; then
             echo "✅ Deployment created successfully!"
@@ -1855,32 +1868,58 @@ manage_single_deployment() {
                     echo
                     echo "Updating allowed domains..."
 
+                    # Detect if container is using containerized nginx (on openwebui-network)
+                    container_network=$(docker inspect "$container_name" --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}' 2>/dev/null)
+                    network_name=$(docker network inspect "$container_network" --format '{{.Name}}' 2>/dev/null)
+
+                    is_containerized=false
+                    if [[ "$network_name" == "openwebui-network" ]]; then
+                        is_containerized=true
+                        echo "✓ Detected containerized nginx deployment"
+                    fi
+
                     # Get current container configuration BEFORE stopping
-                    port=$(docker ps -a --filter "name=$container_name" --format "{{.Ports}}" | grep -o '0.0.0.0:[0-9]*' | cut -d: -f2)
                     redirect_uri=$(docker exec "$container_name" env 2>/dev/null | grep "GOOGLE_REDIRECT_URI=" | cut -d'=' -f2- 2>/dev/null || echo "")
                     webui_name=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_NAME=" | cut -d'=' -f2- 2>/dev/null || echo "QuantaBase - $client_name")
+                    webui_secret_key=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)
+                    fqdn=$(docker exec "$container_name" env 2>/dev/null | grep "FQDN=" | cut -d'=' -f2- 2>/dev/null || echo "")
 
-                    if [[ -z "$port" ]] || [[ -z "$redirect_uri" ]]; then
+                    # Generate new secret key if not found
+                    if [[ -z "$webui_secret_key" ]]; then
+                        echo "⚠️  Generating new WEBUI_SECRET_KEY (missing from current container)"
+                        webui_secret_key=$(openssl rand -base64 32)
+                    fi
+
+                    if [[ -z "$redirect_uri" ]]; then
                         echo "❌ Could not retrieve container configuration. Please recreate manually."
                         echo "Press Enter to continue..."
                         read
                         continue
                     fi
 
-                    echo "Current configuration:"
-                    echo "  Port: $port"
-                    echo "  Redirect URI: $redirect_uri"
-                    echo "  WebUI Name: $webui_name"
-                    echo
+                    # Get port only for host nginx deployments
+                    port=""
+                    if [[ "$is_containerized" == false ]]; then
+                        port=$(docker ps -a --filter "name=$container_name" --format "{{.Ports}}" | grep -o '0.0.0.0:[0-9]*' | cut -d: -f2)
 
-                    # Verify port is available before proceeding
-                    echo "Checking port availability..."
-                    if netstat -ln 2>/dev/null | grep -q ":${port} " && ! docker ps --format "{{.Ports}}" | grep -q ":${port}->"; then
-                        echo "❌ Port $port is in use by another process. Cannot safely recreate container."
-                        echo "Please resolve port conflict manually."
-                        echo "Press Enter to continue..."
-                        read
-                        continue
+                        if [[ -z "$port" ]]; then
+                            echo "❌ Could not retrieve port configuration. Please recreate manually."
+                            echo "Press Enter to continue..."
+                            read
+                            continue
+                        fi
+
+                        echo "Current configuration:"
+                        echo "  Port: $port"
+                        echo "  Redirect URI: $redirect_uri"
+                        echo "  WebUI Name: $webui_name"
+                        echo
+                    else
+                        echo "Current configuration:"
+                        echo "  Network: openwebui-network"
+                        echo "  Redirect URI: $redirect_uri"
+                        echo "  WebUI Name: $webui_name"
+                        echo
                     fi
 
                     # Stop and remove old container (preserve volume)
@@ -1889,41 +1928,57 @@ manage_single_deployment() {
                     echo "Removing old container..."
                     docker rm "$container_name" 2>/dev/null
 
-                    # Double-check port is still available after container removal
-                    if netstat -ln 2>/dev/null | grep -q ":${port} "; then
-                        echo "❌ Port $port is still in use after container removal. Aborting recreation."
-                        echo "Press Enter to continue..."
-                        read
-                        continue
-                    fi
-
                     # Recreate container with new domains
                     echo "Creating new container with updated domains..."
                     volume_name="${container_name}-data"
 
-                    # Extract FQDN from redirect URI
-                    local new_fqdn=$(echo "$redirect_uri" | sed -E 's|https?://||' | sed 's|/oauth/google/callback||')
-
-                    docker run -d \
-                        --name "$container_name" \
-                        -p "${port}:8080" \
-                        -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
-                        -e GOOGLE_CLIENT_SECRET=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 \
-                        -e GOOGLE_REDIRECT_URI="$redirect_uri" \
-                        -e ENABLE_OAUTH_SIGNUP=true \
-                        -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
-                        -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
-                        -e WEBUI_NAME="$webui_name" \
-                        -e USER_PERMISSIONS_CHAT_CONTROLS=false \
-                        -e FQDN="$new_fqdn" \
-                        -e CLIENT_NAME="$client_name" \
-                        -v "${volume_name}:/app/backend/data" \
-                        --restart unless-stopped \
-                        ghcr.io/imagicrafter/open-webui:main
+                    # Build docker run command based on deployment type
+                    if [[ "$is_containerized" == true ]]; then
+                        # Containerized nginx - use network, no port mapping
+                        docker run -d \
+                            --name "$container_name" \
+                            --network openwebui-network \
+                            -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
+                            -e GOOGLE_CLIENT_SECRET=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 \
+                            -e GOOGLE_REDIRECT_URI="$redirect_uri" \
+                            -e ENABLE_OAUTH_SIGNUP=true \
+                            -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
+                            -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
+                            -e WEBUI_NAME="$webui_name" \
+                            -e WEBUI_SECRET_KEY="$webui_secret_key" \
+                            -e USER_PERMISSIONS_CHAT_CONTROLS=false \
+                            -e FQDN="$fqdn" \
+                            -e CLIENT_NAME="$client_name" \
+                            -v "${volume_name}:/app/backend/data" \
+                            --restart unless-stopped \
+                            ghcr.io/imagicrafter/open-webui:main
+                    else
+                        # Host nginx - use port mapping
+                        docker run -d \
+                            --name "$container_name" \
+                            -p "${port}:8080" \
+                            -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
+                            -e GOOGLE_CLIENT_SECRET=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 \
+                            -e GOOGLE_REDIRECT_URI="$redirect_uri" \
+                            -e ENABLE_OAUTH_SIGNUP=true \
+                            -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
+                            -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
+                            -e WEBUI_NAME="$webui_name" \
+                            -e WEBUI_SECRET_KEY="$webui_secret_key" \
+                            -e USER_PERMISSIONS_CHAT_CONTROLS=false \
+                            -e FQDN="$fqdn" \
+                            -e CLIENT_NAME="$client_name" \
+                            -v "${volume_name}:/app/backend/data" \
+                            --restart unless-stopped \
+                            ghcr.io/imagicrafter/open-webui:main
+                    fi
 
                     if [ $? -eq 0 ]; then
                         echo "✅ Container recreated successfully with new allowed domains!"
                         echo "New allowed domains: $new_domains"
+                        if [[ -z "$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)" ]]; then
+                            echo "⚠️  Note: Added WEBUI_SECRET_KEY for OAuth session security"
+                        fi
                     else
                         echo "❌ Failed to recreate container. Check Docker logs."
                     fi

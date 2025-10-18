@@ -1,14 +1,14 @@
 #!/bin/bash
 
 # Multi-Client Open WebUI Template Script
-# Usage: ./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN
+# Usage: ./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]
 # FQDN-based container naming for multi-tenant deployments
 
 if [ $# -lt 5 ]; then
-    echo "Usage: $0 CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN"
+    echo "Usage: $0 CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]"
     echo "Examples:"
     echo "  $0 chat 8081 chat.client-a.com openwebui-chat-client-a-com chat.client-a.com"
-    echo "  $0 chat 8082 localhost:8082 openwebui-localhost-8082 localhost:8082"
+    echo "  $0 chat 8082 localhost:8082 openwebui-localhost-8082 localhost:8082 martins.net SECRET_KEY"
     exit 1
 fi
 
@@ -17,6 +17,8 @@ PORT=$2
 DOMAIN=$3
 CONTAINER_NAME=$4
 FQDN=$5
+OAUTH_DOMAINS="${6:-martins.net}"  # Default to martins.net if not provided
+WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Generate if not provided
 VOLUME_NAME="${CONTAINER_NAME}-data"
 
 # Set redirect URI and environment based on domain type
@@ -65,9 +67,10 @@ docker_cmd="docker run -d \
     -e GOOGLE_CLIENT_SECRET=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 \
     -e GOOGLE_REDIRECT_URI=${REDIRECT_URI} \
     -e ENABLE_OAUTH_SIGNUP=true \
-    -e OAUTH_ALLOWED_DOMAINS=martins.net \
+    -e OAUTH_ALLOWED_DOMAINS=${OAUTH_DOMAINS} \
     -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
     -e WEBUI_NAME=\"QuantaBase - ${CLIENT_NAME}\" \
+    -e WEBUI_SECRET_KEY=\"${WEBUI_SECRET_KEY}\" \
     -e USER_PERMISSIONS_CHAT_CONTROLS=false \
     -e FQDN=\"${FQDN}\" \
     -e CLIENT_NAME=\"${CLIENT_NAME}\""
