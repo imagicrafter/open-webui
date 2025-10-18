@@ -2,11 +2,11 @@
 # Quick Setup for Open WebUI Deployment
 # Run this as root on a fresh Digital Ocean droplet - NO PROMPTS, JUST WORKS
 #
-# Usage:
-#   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY"
+# Usage Option 1 (auto-copy SSH key from root):
+#   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash
 #
-# Example:
-#   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3Nza... user@host"
+# Usage Option 2 (provide SSH key):
+#   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY"
 
 set -euo pipefail
 
@@ -32,29 +32,31 @@ if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}❌ This script must be run as root${NC}"
     echo
     echo "Usage:"
-    echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- \"YOUR_SSH_KEY\""
+    echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash"
     exit 1
 fi
 
-# Check SSH key provided
+# Determine SSH key source
 if [ -z "$SSH_KEY" ]; then
-    echo -e "${RED}❌ SSH public key is required${NC}"
-    echo
-    echo "Usage:"
-    echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- \"YOUR_SSH_KEY\""
-    echo
-    echo "Get your SSH public key with:"
-    echo "  cat ~/.ssh/id_rsa.pub"
-    echo "  or"
-    echo "  cat ~/.ssh/id_ed25519.pub"
-    exit 1
-fi
-
-# Validate SSH key format
-if [[ ! "$SSH_KEY" =~ ^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256) ]]; then
-    echo -e "${RED}❌ Invalid SSH key format${NC}"
-    echo "SSH key should start with 'ssh-rsa', 'ssh-ed25519', or 'ecdsa-sha2-nistp256'"
-    exit 1
+    if [ -f /root/.ssh/authorized_keys ]; then
+        echo -e "${YELLOW}No SSH key provided - will copy from root's authorized_keys${NC}"
+        COPY_FROM_ROOT=true
+    else
+        echo -e "${RED}❌ No SSH key provided and root has no authorized_keys${NC}"
+        echo
+        echo "Either:"
+        echo "  1. Provide SSH key: curl ... | bash -s -- \"YOUR_SSH_KEY\""
+        echo "  2. Ensure root has SSH keys in /root/.ssh/authorized_keys"
+        exit 1
+    fi
+else
+    # Validate SSH key format
+    if [[ ! "$SSH_KEY" =~ ^(ssh-rsa|ssh-ed25519|ecdsa-sha2-nistp256) ]]; then
+        echo -e "${RED}❌ Invalid SSH key format${NC}"
+        echo "SSH key should start with 'ssh-rsa', 'ssh-ed25519', or 'ecdsa-sha2-nistp256'"
+        exit 1
+    fi
+    COPY_FROM_ROOT=false
 fi
 
 # Step 1: Create user if doesn't exist
@@ -83,13 +85,21 @@ echo -e "${BLUE}[4/8] Setting up SSH access...${NC}"
 # Fix home directory permissions (SSH requires 755 or 700)
 chmod 755 "/home/$DEPLOY_USER"
 mkdir -p "/home/$DEPLOY_USER/.ssh"
-# Normalize SSH key to single line (remove any newlines/whitespace issues)
-SSH_KEY_CLEAN=$(echo "$SSH_KEY" | tr -d '\n\r' | tr -s ' ')
-echo "$SSH_KEY_CLEAN" > "/home/$DEPLOY_USER/.ssh/authorized_keys"
+
+if [ "$COPY_FROM_ROOT" = true ]; then
+    # Copy SSH keys from root
+    cp /root/.ssh/authorized_keys "/home/$DEPLOY_USER/.ssh/authorized_keys"
+    echo -e "${GREEN}✅ SSH keys copied from root${NC}"
+else
+    # Normalize SSH key to single line (remove any newlines/whitespace issues)
+    SSH_KEY_CLEAN=$(echo "$SSH_KEY" | tr -d '\n\r' | tr -s ' ')
+    echo "$SSH_KEY_CLEAN" > "/home/$DEPLOY_USER/.ssh/authorized_keys"
+    echo -e "${GREEN}✅ SSH key configured${NC}"
+fi
+
 chown -R "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.ssh"
 chmod 700 "/home/$DEPLOY_USER/.ssh"
 chmod 600 "/home/$DEPLOY_USER/.ssh/authorized_keys"
-echo -e "${GREEN}✅ SSH key configured${NC}"
 
 # Step 5: Clone Open WebUI repository
 echo -e "${BLUE}[5/8] Cloning repository...${NC}"
@@ -169,7 +179,11 @@ echo "Configuration:"
 echo -e "  ${GREEN}✅${NC} User: qbmgr"
 echo -e "  ${GREEN}✅${NC} Groups: sudo, docker"
 echo -e "  ${GREEN}✅${NC} Repository: /home/qbmgr/open-webui"
-echo -e "  ${GREEN}✅${NC} SSH key: Configured"
+if [ "$COPY_FROM_ROOT" = true ]; then
+    echo -e "  ${GREEN}✅${NC} SSH keys: Copied from root"
+else
+    echo -e "  ${GREEN}✅${NC} SSH key: Configured"
+fi
 echo -e "  ${GREEN}✅${NC} Packages: certbot, jq, htop, tree"
 echo
 echo "Next Steps:"
