@@ -2428,15 +2428,23 @@ generate_nginx_config() {
                     domain="$default_production_domain"
                 fi
 
-                # Choose template based on nginx type
+                # Choose template based on nginx type and SSL availability
                 if [ "$nginx_containerized" = true ]; then
-                    template_file="${SCRIPT_DIR}/nginx-template-containerized.conf"
+                    # Check if SSL certs already exist for this domain
+                    if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
+                        template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized.conf"
+                        ssl_ready=true
+                    else
+                        template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized-http-only.conf"
+                        ssl_ready=false
+                    fi
                     config_file="/tmp/${domain}-nginx.conf"
                     nginx_config_dest="/opt/openwebui-nginx/conf.d/${domain}.conf"
                 else
                     template_file="${SCRIPT_DIR}/nginx-template.conf"
                     config_file="/tmp/${domain}-nginx.conf"
                     nginx_config_dest="/etc/nginx/sites-available/${domain}"
+                    ssl_ready=false
                 fi
                 setup_type="production"
                 ;;
@@ -2448,13 +2456,15 @@ generate_nginx_config() {
                 fi
 
                 if [ "$nginx_containerized" = true ]; then
-                    template_file="${SCRIPT_DIR}/nginx-template-containerized.conf"
+                    template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized-http-only.conf"
                     config_file="/tmp/${domain}-nginx.conf"
                     nginx_config_dest="/opt/openwebui-nginx/conf.d/${domain}.conf"
+                    ssl_ready=false
                 else
                     template_file="${SCRIPT_DIR}/nginx-template-local.conf"
                     config_file="${SCRIPT_DIR}/nginx/sites-available/${domain}"
                     nginx_config_dest=""
+                    ssl_ready=false
                 fi
                 setup_type="local"
                 ;;
@@ -2485,6 +2495,58 @@ generate_nginx_config() {
         echo "✅ nginx configuration generated: $config_file"
         echo
 
+        # Auto-deploy for containerized nginx
+        if [ "$nginx_containerized" = true ] && [ "$setup_type" = "production" ]; then
+            echo "╔════════════════════════════════════════╗"
+            echo "║      Auto-Deploy Configuration         ║"
+            echo "╚════════════════════════════════════════╝"
+            echo
+            echo "Detected containerized nginx - offering automated deployment"
+            echo
+            echo -n "Automatically deploy this configuration? (Y/n): "
+            read auto_deploy
+
+            if [[ "$auto_deploy" =~ ^[Nn]$ ]]; then
+                echo "Skipping auto-deployment..."
+            else
+                echo
+                echo "Step 1: Copying configuration to nginx container..."
+                if cp "$config_file" "${nginx_config_dest}" 2>/dev/null || sudo cp "$config_file" "${nginx_config_dest}" 2>/dev/null; then
+                    echo "✅ Configuration copied to ${nginx_config_dest}"
+                else
+                    echo "❌ Failed to copy configuration (permission denied)"
+                    echo "   Run manually: sudo cp $config_file ${nginx_config_dest}"
+                    auto_deploy="failed"
+                fi
+
+                if [[ "$auto_deploy" != "failed" ]]; then
+                    echo
+                    echo "Step 2: Testing nginx configuration..."
+                    if docker exec openwebui-nginx nginx -t 2>&1 | grep -q "successful"; then
+                        echo "✅ nginx configuration test passed"
+
+                        echo
+                        echo "Step 3: Reloading nginx..."
+                        if docker exec openwebui-nginx nginx -s reload; then
+                            echo "✅ nginx reloaded successfully"
+                            echo
+                            echo "╔════════════════════════════════════════╗"
+                            echo "║     Configuration Deployed!            ║"
+                            echo "╚════════════════════════════════════════╝"
+                        else
+                            echo "❌ Failed to reload nginx"
+                        fi
+                    else
+                        echo "❌ nginx configuration test failed!"
+                        echo "   Review the configuration and try again"
+                        docker exec openwebui-nginx nginx -t
+                        auto_deploy="failed"
+                    fi
+                fi
+            fi
+            echo
+        fi
+
         if [ "$setup_type" = "production" ]; then
             # Auto-detect current server info
             current_user=$(whoami)
@@ -2497,32 +2559,92 @@ generate_nginx_config() {
 
             if [ "$nginx_containerized" = true ]; then
                 # Containerized nginx instructions
-                echo "1. Copy config to nginx container directory:"
-                echo "   sudo cp $config_file ${nginx_config_dest}"
+                if [[ "$auto_deploy" != "failed" ]] && [[ ! "$auto_deploy" =~ ^[Nn]$ ]]; then
+                    echo "✓ Configuration already deployed automatically"
+                    echo
+                fi
+
+                echo "Next Steps:"
                 echo
-                echo "2. Test nginx configuration:"
-                echo "   docker exec openwebui-nginx nginx -t"
-                echo
-                echo "3. Reload nginx:"
-                echo "   docker exec openwebui-nginx nginx -s reload"
-                echo
-                echo "4. Configure DNS:"
+                if [[ "$auto_deploy" == "failed" ]] || [[ "$auto_deploy" =~ ^[Nn]$ ]]; then
+                    echo "1. Copy config to nginx container directory:"
+                    echo "   sudo cp $config_file ${nginx_config_dest}"
+                    echo
+                    echo "2. Test and reload nginx:"
+                    echo "   docker exec openwebui-nginx nginx -t && docker exec openwebui-nginx nginx -s reload"
+                    echo
+                    step_num=3
+                else
+                    step_num=1
+                fi
+
+                echo "${step_num}. Configure DNS:"
                 echo "   - Create A record: ${domain} → $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP')"
                 echo "   - Wait for DNS propagation (1-5 minutes)"
+                echo "   - Test: dig ${domain} +short"
                 echo
-                echo "5. Generate SSL certificate (host certbot):"
-                echo "   sudo certbot certonly --webroot -w /opt/openwebui-nginx/webroot -d ${domain}"
-                echo
-                echo "   OR use certbot container:"
-                echo "   docker run --rm -v /etc/letsencrypt:/etc/letsencrypt \\"
-                echo "     -v /opt/openwebui-nginx/webroot:/webroot \\"
-                echo "     certbot/certbot certonly --webroot -w /webroot -d ${domain}"
-                echo
-                echo "6. Update nginx config with SSL paths (already in template)"
-                echo "   Reload: docker exec openwebui-nginx nginx -s reload"
-                echo
-                echo "7. Verify HTTPS access:"
-                echo "   curl -I https://${domain}"
+
+                if [ "$ssl_ready" = false ]; then
+                    ((step_num++))
+                    echo "${step_num}. SSL Certificate Setup:"
+                    echo
+
+                    # Offer automated SSL setup
+                    echo "Would you like to set up SSL certificate now?"
+                    echo "Note: DNS must be configured first!"
+                    echo
+                    echo -n "Set up SSL certificate? (y/N): "
+                    read setup_ssl
+
+                    if [[ "$setup_ssl" =~ ^[Yy]$ ]]; then
+                        echo
+                        echo "Running certbot to obtain SSL certificate..."
+                        echo
+
+                        if sudo certbot certonly --webroot -w /opt/openwebui-nginx/webroot -d "${domain}" --non-interactive --agree-tos --email "admin@${domain}" 2>&1 | tee /tmp/certbot-output.log; then
+                            echo
+                            echo "✅ SSL certificate obtained successfully!"
+                            echo
+                            echo "Updating nginx configuration to use SSL..."
+
+                            # Generate SSL config
+                            sed -e "s/\${CLIENT_NAME}/${client_name}/g" \
+                                -e "s/\${DOMAIN}/${domain}/g" \
+                                -e "s/\${CONTAINER_NAME}/${container_name}/g" \
+                                "${SCRIPT_DIR}/nginx-container/nginx-template-containerized.conf" > "$config_file"
+
+                            # Deploy SSL config
+                            if cp "$config_file" "${nginx_config_dest}" 2>/dev/null || sudo cp "$config_file" "${nginx_config_dest}" 2>/dev/null; then
+                                if docker exec openwebui-nginx nginx -t 2>&1 | grep -q "successful"; then
+                                    docker exec openwebui-nginx nginx -s reload
+                                    echo "✅ HTTPS is now enabled for ${domain}"
+                                    echo
+                                    echo "Test: curl -I https://${domain}"
+                                else
+                                    echo "❌ nginx config test failed, check /opt/openwebui-nginx/conf.d/${domain}.conf"
+                                fi
+                            fi
+                        else
+                            echo
+                            echo "❌ Failed to obtain SSL certificate"
+                            echo "Common issues:"
+                            echo "  - DNS not configured or not propagated yet"
+                            echo "  - Domain not pointing to this server"
+                            echo "  - Port 80 not accessible from internet"
+                            echo
+                            echo "Manual command:"
+                            echo "  sudo certbot certonly --webroot -w /opt/openwebui-nginx/webroot -d ${domain}"
+                        fi
+                    else
+                        echo
+                        echo "Manual SSL setup:"
+                        echo "  sudo certbot certonly --webroot -w /opt/openwebui-nginx/webroot -d ${domain}"
+                        echo
+                        echo "Then regenerate nginx config and select option 1 (Production with HTTPS)"
+                    fi
+                else
+                    echo "✅ SSL is already configured for this domain"
+                fi
             else
                 # Host nginx instructions
                 echo "1. Copy config to server:"

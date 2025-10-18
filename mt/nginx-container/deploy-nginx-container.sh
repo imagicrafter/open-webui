@@ -66,6 +66,30 @@ echo "   - ${NGINX_SSL_DIR}"
 echo "   - ${NGINX_CONFIG_DIR}/webroot"
 echo
 
+# Step 2.5: Create SSL options files
+echo -e "${BLUE}Step 2.5: Create SSL options files${NC}"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+if [ -f "${SCRIPT_DIR}/create-ssl-options.sh" ]; then
+    bash "${SCRIPT_DIR}/create-ssl-options.sh" 2>&1 | grep -E "^(Creating|✅|⚠️)" || true
+    echo
+else
+    echo -e "${YELLOW}⚠️  SSL options script not found, creating manually...${NC}"
+    # Create basic SSL options inline
+    cat > ${NGINX_SSL_DIR}/options-ssl-nginx.conf << 'SSLEOF'
+ssl_session_cache shared:le_nginx_SSL:10m;
+ssl_session_timeout 1440m;
+ssl_session_tickets off;
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_prefer_server_ciphers off;
+ssl_ciphers "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384";
+SSLEOF
+    if command -v openssl &> /dev/null; then
+        openssl dhparam -out ${NGINX_SSL_DIR}/ssl-dhparams.pem 2048 2>/dev/null || true
+    fi
+    echo -e "${GREEN}✅ Created SSL options files${NC}"
+fi
+echo
+
 # Step 3: Create main nginx.conf
 echo -e "${BLUE}Step 3: Create main nginx.conf${NC}"
 cat > ${NGINX_CONFIG_DIR}/nginx.conf << 'EOF'
@@ -188,6 +212,7 @@ docker run -d \
     -p 443:443 \
     -v ${NGINX_CONFIG_DIR}/nginx.conf:/etc/nginx/nginx.conf:ro \
     -v ${NGINX_CONF_D}:/etc/nginx/conf.d:ro \
+    -v ${NGINX_SSL_DIR}:/etc/nginx/ssl:ro \
     -v ${NGINX_CONFIG_DIR}/webroot:/var/www/html \
     ${SSL_MOUNT} \
     -v ${NGINX_LOGS_VOLUME}:/var/log/nginx \
