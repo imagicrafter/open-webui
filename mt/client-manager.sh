@@ -1935,6 +1935,9 @@ manage_single_deployment() {
                     # Build docker run command based on deployment type
                     if [[ "$is_containerized" == true ]]; then
                         # Containerized nginx - use network, no port mapping
+                        # Extract WEBUI_URL from redirect_uri (remove /oauth/google/callback)
+                        local webui_url="${redirect_uri%/oauth/google/callback}"
+
                         docker run -d \
                             --name "$container_name" \
                             --network openwebui-network \
@@ -1946,6 +1949,7 @@ manage_single_deployment() {
                             -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                             -e WEBUI_NAME="$webui_name" \
                             -e WEBUI_SECRET_KEY="$webui_secret_key" \
+                            -e WEBUI_URL="$webui_url" \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
                             -e CLIENT_NAME="$client_name" \
@@ -1954,6 +1958,9 @@ manage_single_deployment() {
                             ghcr.io/imagicrafter/open-webui:main
                     else
                         # Host nginx - use port mapping
+                        # Extract WEBUI_URL from redirect_uri (remove /oauth/google/callback)
+                        local webui_url="${redirect_uri%/oauth/google/callback}"
+
                         docker run -d \
                             --name "$container_name" \
                             -p "${port}:8080" \
@@ -1965,6 +1972,7 @@ manage_single_deployment() {
                             -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                             -e WEBUI_NAME="$webui_name" \
                             -e WEBUI_SECRET_KEY="$webui_secret_key" \
+                            -e WEBUI_URL="$webui_url" \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
                             -e CLIENT_NAME="$client_name" \

@@ -71,6 +71,7 @@ docker_cmd="docker run -d \
     -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
     -e WEBUI_NAME=\"QuantaBase - ${CLIENT_NAME}\" \
     -e WEBUI_SECRET_KEY=\"${WEBUI_SECRET_KEY}\" \
+    -e WEBUI_URL=\"${REDIRECT_URI%/oauth/google/callback}\" \
     -e USER_PERMISSIONS_CHAT_CONTROLS=false \
     -e FQDN=\"${FQDN}\" \
     -e CLIENT_NAME=\"${CLIENT_NAME}\""
