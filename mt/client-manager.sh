@@ -1950,6 +1950,7 @@ manage_single_deployment() {
                             -e WEBUI_NAME="$webui_name" \
                             -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
+                            -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
                             -e CLIENT_NAME="$client_name" \
@@ -1973,6 +1974,7 @@ manage_single_deployment() {
                             -e WEBUI_NAME="$webui_name" \
                             -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
+                            -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
                             -e CLIENT_NAME="$client_name" \

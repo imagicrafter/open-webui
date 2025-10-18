@@ -72,6 +72,7 @@ docker_cmd="docker run -d \
     -e WEBUI_NAME=\"QuantaBase - ${CLIENT_NAME}\" \
     -e WEBUI_SECRET_KEY=\"${WEBUI_SECRET_KEY}\" \
     -e WEBUI_URL=\"${REDIRECT_URI%/oauth/google/callback}\" \
+    -e ENABLE_VERSION_UPDATE_CHECK=false \
     -e USER_PERMISSIONS_CHAT_CONTROLS=false \
     -e FQDN=\"${FQDN}\" \
     -e CLIENT_NAME=\"${CLIENT_NAME}\""
