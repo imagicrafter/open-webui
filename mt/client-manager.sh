@@ -2407,73 +2407,41 @@ generate_nginx_config() {
 
         echo
         echo
-        echo "Select configuration type:"
-        echo "1) Production (HTTPS with Let's Encrypt)"
-        echo "2) Local Testing (HTTP with Docker nginx)"
+        echo "Generating production nginx configuration..."
+        echo "(HTTPS with Let's Encrypt SSL)"
         echo
-        echo -n "Choose option (1-2): "
-        read config_type
 
-        case "$config_type" in
-            1)
-                # Use current FQDN or default to client_name.quantabase.io
-                if [[ -n "$current_fqdn" ]] && [[ "$current_fqdn" != localhost* ]]; then
-                    default_production_domain="$current_fqdn"
-                else
-                    default_production_domain="${client_name}.quantabase.io"
-                fi
-                echo -n "Production domain (press Enter for '${default_production_domain}'): "
-                read domain
-                if [[ -z "$domain" ]]; then
-                    domain="$default_production_domain"
-                fi
+        # Use current FQDN or default to client_name.quantabase.io
+        if [[ -n "$current_fqdn" ]] && [[ "$current_fqdn" != localhost* ]]; then
+            default_production_domain="$current_fqdn"
+        else
+            default_production_domain="${client_name}.quantabase.io"
+        fi
+        echo -n "Production domain (press Enter for '${default_production_domain}'): "
+        read domain
+        if [[ -z "$domain" ]]; then
+            domain="$default_production_domain"
+        fi
 
-                # Choose template based on nginx type and SSL availability
-                if [ "$nginx_containerized" = true ]; then
-                    # Check if SSL certs already exist for this domain
-                    if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
-                        template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized.conf"
-                        ssl_ready=true
-                    else
-                        template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized-http-only.conf"
-                        ssl_ready=false
-                    fi
-                    config_file="/tmp/${domain}-nginx.conf"
-                    nginx_config_dest="/opt/openwebui-nginx/conf.d/${domain}.conf"
-                else
-                    template_file="${SCRIPT_DIR}/nginx-template.conf"
-                    config_file="/tmp/${domain}-nginx.conf"
-                    nginx_config_dest="/etc/nginx/sites-available/${domain}"
-                    ssl_ready=false
-                fi
-                setup_type="production"
-                ;;
-            2)
-                echo -n "Enter local domain (press Enter for 'localhost'): "
-                read domain
-                if [[ -z "$domain" ]]; then
-                    domain="localhost"
-                fi
-
-                if [ "$nginx_containerized" = true ]; then
-                    template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized-http-only.conf"
-                    config_file="/tmp/${domain}-nginx.conf"
-                    nginx_config_dest="/opt/openwebui-nginx/conf.d/${domain}.conf"
-                    ssl_ready=false
-                else
-                    template_file="${SCRIPT_DIR}/nginx-template-local.conf"
-                    config_file="${SCRIPT_DIR}/nginx/sites-available/${domain}"
-                    nginx_config_dest=""
-                    ssl_ready=false
-                fi
-                setup_type="local"
-                ;;
-            *)
-                echo "Invalid selection. Press Enter to continue..."
-                read
-                return
-                ;;
-        esac
+        # Choose template based on nginx type and SSL availability
+        if [ "$nginx_containerized" = true ]; then
+            # Check if SSL certs already exist for this domain
+            if [ -f "/etc/letsencrypt/live/${domain}/fullchain.pem" ]; then
+                template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized.conf"
+                ssl_ready=true
+            else
+                template_file="${SCRIPT_DIR}/nginx-container/nginx-template-containerized-http-only.conf"
+                ssl_ready=false
+            fi
+            config_file="/tmp/${domain}-nginx.conf"
+            nginx_config_dest="/opt/openwebui-nginx/conf.d/${domain}.conf"
+        else
+            template_file="${SCRIPT_DIR}/nginx-template.conf"
+            config_file="/tmp/${domain}-nginx.conf"
+            nginx_config_dest="/etc/nginx/sites-available/${domain}"
+            ssl_ready=false
+        fi
+        setup_type="production"
 
         # Generate nginx config
         # Replace template variables (use different syntax for compatibility)
