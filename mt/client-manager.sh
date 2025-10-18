@@ -2322,9 +2322,9 @@ generate_nginx_config() {
     echo "╚════════════════════════════════════════╝"
     echo
 
-    # List available clients (exclude sync nodes, keep full container names)
+    # List available clients (exclude sync nodes and nginx container)
     echo "Available deployments:"
-    clients=($(docker ps -a --filter "name=openwebui-" --format "{{.Names}}" | grep -v "openwebui-sync-node-"))
+    clients=($(docker ps -a --filter "name=openwebui-" --format "{{.Names}}" | grep -v "openwebui-sync-node-" | grep -v "^openwebui-nginx$"))
 
     if [ ${#clients[@]} -eq 0 ]; then
         echo "No deployments found. Create a deployment first."
@@ -2348,15 +2348,17 @@ generate_nginx_config() {
             fi
         fi
 
-        # Check if nginx configuration exists
-        # TODO: This section currently assumes nginx is not containerized.
-        # Future enhancement needed to support dockerized nginx deployments.
+        # Check if nginx configuration exists (both host and containerized nginx)
         nginx_status="❌ Not configured"
 
-        if [[ -n "$fqdn" ]] && [ -f "/etc/nginx/sites-available/${fqdn}" ]; then
-            nginx_status="✅ Configured"
-        elif [[ -n "$fqdn" ]] && [ -f "${SCRIPT_DIR}/nginx/sites-available/${fqdn}" ]; then
-            nginx_status="🔧 Local config"
+        if [[ -n "$fqdn" ]]; then
+            # Check containerized nginx first
+            if [ -f "/opt/openwebui-nginx/conf.d/${fqdn}.conf" ]; then
+                nginx_status="✅ Configured"
+            # Check host nginx
+            elif [ -f "/etc/nginx/sites-available/${fqdn}" ]; then
+                nginx_status="✅ Configured"
+            fi
         fi
 
         # Extract client_name for display
