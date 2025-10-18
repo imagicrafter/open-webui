@@ -80,8 +80,12 @@ echo -e "${GREEN}✅ Passwordless sudo enabled${NC}"
 
 # Step 4: Set up SSH key
 echo -e "${BLUE}[4/8] Setting up SSH access...${NC}"
+# Fix home directory permissions (SSH requires 755 or 700)
+chmod 755 "/home/$DEPLOY_USER"
 mkdir -p "/home/$DEPLOY_USER/.ssh"
-echo "$SSH_KEY" > "/home/$DEPLOY_USER/.ssh/authorized_keys"
+# Normalize SSH key to single line (remove any newlines/whitespace issues)
+SSH_KEY_CLEAN=$(echo "$SSH_KEY" | tr -d '\n\r' | tr -s ' ')
+echo "$SSH_KEY_CLEAN" > "/home/$DEPLOY_USER/.ssh/authorized_keys"
 chown -R "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.ssh"
 chmod 700 "/home/$DEPLOY_USER/.ssh"
 chmod 600 "/home/$DEPLOY_USER/.ssh/authorized_keys"
