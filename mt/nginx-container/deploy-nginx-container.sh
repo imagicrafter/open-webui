@@ -252,22 +252,18 @@ echo "Network: ${NETWORK_NAME}"
 echo "Config directory: ${NGINX_CONFIG_DIR}"
 echo
 echo -e "${YELLOW}Next Steps:${NC}"
-echo "1. Connect Open WebUI containers to ${NETWORK_NAME}:"
-echo "   docker network connect ${NETWORK_NAME} openwebui-CONTAINER-NAME"
+echo "1. Deploy Open WebUI clients using client-manager.sh:"
+echo "   cd ../  # Go to mt/ directory"
+echo "   ./client-manager.sh"
+echo "   Choose option 2: Create New Deployment"
 echo
-echo "2. Update nginx configs in ${NGINX_CONF_D} to use container names:"
-echo "   proxy_pass http://openwebui-CONTAINER-NAME:8080;"
+echo "2. Configure nginx and SSL for each client:"
+echo "   ./client-manager.sh"
+echo "   Choose option 5: Generate nginx Configuration"
+echo "   (Handles nginx config generation and SSL setup automatically)"
 echo
-echo "3. Reload nginx config:"
-echo "   docker exec ${NGINX_CONTAINER_NAME} nginx -s reload"
-echo
-echo "4. Test configuration:"
-echo "   docker exec ${NGINX_CONTAINER_NAME} nginx -t"
-echo
-echo "5. View logs:"
-echo "   docker logs -f ${NGINX_CONTAINER_NAME}"
-echo
-echo -e "${BLUE}For SSL certificates:${NC}"
-echo "  Keep using host certbot with renewal hooks, or"
-echo "  Use certbot container (see documentation)"
+echo -e "${BLUE}Useful Commands:${NC}"
+echo "  Test nginx config:  docker exec ${NGINX_CONTAINER_NAME} nginx -t"
+echo "  Reload nginx:       docker exec ${NGINX_CONTAINER_NAME} nginx -s reload"
+echo "  View logs:          docker logs -f ${NGINX_CONTAINER_NAME}"
 echo
