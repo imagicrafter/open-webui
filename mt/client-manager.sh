@@ -33,15 +33,23 @@ show_main_menu() {
     echo "║       Open WebUI Client Manager        ║"
     echo "╚════════════════════════════════════════╝"
     echo
+
+    # Check if nginx is deployed to change menu text
+    local nginx_option
+    if docker ps -a --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
+        nginx_option="2) Manage nginx Container"
+    else
+        nginx_option="2) Deploy nginx Container"
+    fi
+
     echo "1) View Deployment Status"
-    echo "2) Deploy nginx Container"
+    echo "$nginx_option"
     echo "3) Create New Deployment"
     echo "4) Manage Client Deployment"
     echo "5) Manage Sync Cluster"
-    echo "6) Generate nginx Configuration"
-    echo "7) Exit"
+    echo "6) Exit"
     echo
-    echo -n "Please select an option (1-7): "
+    echo -n "Please select an option (1-6): "
 }
 
 # Detect container type (sync-node vs client)
@@ -255,56 +263,139 @@ create_new_deployment() {
     read
 }
 
-# Deploy nginx container
+# Manage or deploy nginx container
+manage_or_deploy_nginx() {
+    # Check if nginx container exists
+    if docker ps -a --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
+        # nginx exists - show management menu
+        manage_nginx_menu
+    else
+        # nginx doesn't exist - show deployment prompt
+        deploy_nginx_container
+    fi
+}
+
+# Deploy nginx container (first-time setup)
 deploy_nginx_container() {
     clear
     echo "╔════════════════════════════════════════╗"
     echo "║      Deploy nginx Container            ║"
     echo "╚════════════════════════════════════════╝"
     echo
+    echo "nginx container not found. Deploy now?"
+    echo
+    echo -n "Deploy nginx container? (y/N): "
+    read confirm
 
-    # Check if nginx container already exists
-    if docker ps -a --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
-        local status=$(docker ps --filter "name=openwebui-nginx" --format "{{.Status}}")
-        if [[ -n "$status" ]]; then
-            echo "✅ nginx container is already deployed and running"
-            echo
-            echo "Status: $status"
-            echo "Network: openwebui-network"
-            echo
-            echo "To manage nginx:"
-            echo "  - View logs:   docker logs -f openwebui-nginx"
-            echo "  - Test config: docker exec openwebui-nginx nginx -t"
-            echo "  - Reload:      docker exec openwebui-nginx nginx -s reload"
-        else
-            echo "⚠️  nginx container exists but is not running"
-            echo
-            echo "Start it with: docker start openwebui-nginx"
-        fi
-    else
-        echo "nginx container not found. Deploy now?"
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
         echo
-        echo -n "Deploy nginx container? (y/N): "
-        read confirm
+        echo "Deploying nginx container..."
+        echo
 
-        if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            echo
-            echo "Deploying nginx container..."
-            echo
+        # Run the deployment script
+        "${SCRIPT_DIR}/nginx-container/deploy-nginx-container.sh"
 
-            # Run the deployment script
-            "${SCRIPT_DIR}/nginx-container/deploy-nginx-container.sh"
-
-            echo
-            echo "✅ nginx deployment complete!"
-        else
-            echo "Deployment cancelled."
-        fi
+        echo
+        echo "✅ nginx deployment complete!"
+    else
+        echo "Deployment cancelled."
     fi
 
     echo
     echo "Press Enter to continue..."
     read
+}
+
+# Manage nginx container menu
+manage_nginx_menu() {
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║         Manage nginx Container         ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+
+        # Show nginx status
+        local status=$(docker ps --filter "name=openwebui-nginx" --format "{{.Status}}")
+        local ports=$(docker ps -a --filter "name=openwebui-nginx" --format "{{.Ports}}")
+
+        echo "Status: $status"
+        echo "Ports:  $ports"
+        echo "Network: openwebui-network"
+        echo
+
+        echo "1) Generate nginx Configuration for Client"
+        echo "2) View nginx Logs"
+        echo "3) Test nginx Configuration"
+        echo "4) Reload nginx"
+        echo "5) Restart nginx Container"
+        echo "6) Stop nginx Container"
+        echo "7) Return to Main Menu"
+        echo
+        echo -n "Select action (1-7): "
+        read action
+
+        case "$action" in
+            1)
+                generate_nginx_config
+                ;;
+            2)
+                clear
+                echo "Showing nginx logs (Ctrl+C to exit)..."
+                echo
+                docker logs -f openwebui-nginx
+                ;;
+            3)
+                clear
+                echo "Testing nginx configuration..."
+                echo
+                docker exec openwebui-nginx nginx -t
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            4)
+                clear
+                echo "Reloading nginx..."
+                docker exec openwebui-nginx nginx -s reload
+                echo "✅ nginx reloaded"
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            5)
+                clear
+                echo "Restarting nginx container..."
+                docker restart openwebui-nginx
+                echo "✅ nginx container restarted"
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            6)
+                clear
+                echo "⚠️  Stopping nginx will make all client sites inaccessible!"
+                echo -n "Are you sure? (y/N): "
+                read confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    docker stop openwebui-nginx
+                    echo "✅ nginx container stopped"
+                else
+                    echo "Cancelled"
+                fi
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            7)
+                return
+                ;;
+            *)
+                echo "Invalid selection. Press Enter to continue..."
+                read
+                ;;
+        esac
+    done
 }
 
 # Sync-node management menu
@@ -1674,14 +1765,16 @@ manage_deployment_menu() {
         echo "╚════════════════════════════════════════╝"
         echo
 
-        # List available clients (exclude sync-nodes, keep full container names)
+        # List available clients (exclude sync-nodes and nginx, keep full container names)
         echo "Available client deployments:"
         all_containers=($(docker ps -a --filter "name=openwebui-" --format "{{.Names}}"))
 
-        # Filter out sync-nodes
+        # Filter out sync-nodes and nginx
         clients=()
         for container in "${all_containers[@]}"; do
-            if [[ "$container" != "openwebui-sync-node-a" ]] && [[ "$container" != "openwebui-sync-node-b" ]]; then
+            if [[ "$container" != "openwebui-sync-node-a" ]] && \
+               [[ "$container" != "openwebui-sync-node-b" ]] && \
+               [[ "$container" != "openwebui-nginx" ]]; then
                 clients+=("$container")
             fi
         done
@@ -2906,7 +2999,7 @@ if [ $# -eq 0 ]; then
                 read
                 ;;
             2)
-                deploy_nginx_container
+                manage_or_deploy_nginx
                 ;;
             3)
                 create_new_deployment
@@ -2918,9 +3011,6 @@ if [ $# -eq 0 ]; then
                 manage_sync_cluster_menu
                 ;;
             6)
-                generate_nginx_config
-                ;;
-            7)
                 echo "Goodbye!"
                 exit 0
                 ;;
