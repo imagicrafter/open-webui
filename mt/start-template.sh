@@ -32,7 +32,9 @@ fi
 
 echo "Starting Open WebUI for client: ${CLIENT_NAME}"
 echo "Container: ${CONTAINER_NAME}"
-echo "Port: ${PORT}"
+if [[ "$PORT" != "N/A" ]]; then
+    echo "Port: ${PORT}"
+fi
 echo "Domain: ${DOMAIN}"
 echo "Environment: ${ENVIRONMENT}"
 echo "Redirect URI: ${REDIRECT_URI}"
@@ -47,15 +49,19 @@ fi
 # Detect if nginx is containerized
 NGINX_CONTAINERIZED=false
 NETWORK_CONFIG=""
-PORT_CONFIG="-p ${PORT}:8080"
+PORT_CONFIG=""
 
 if docker ps --filter "name=openwebui-nginx" --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
     NGINX_CONTAINERIZED=true
     NETWORK_CONFIG="--network openwebui-network"
-    PORT_CONFIG=""  # No port mapping needed for containerized nginx
+    # No port mapping needed for containerized nginx
     echo "✓ Detected containerized nginx - deploying on openwebui-network"
     echo "  (No port mapping needed - container-to-container communication)"
 else
+    NGINX_CONTAINERIZED=false
+    if [[ "$PORT" != "N/A" ]]; then
+        PORT_CONFIG="-p ${PORT}:8080"
+    fi
     echo "ℹ️  Using host nginx mode - deploying with port mapping"
 fi
 

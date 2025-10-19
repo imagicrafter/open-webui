@@ -95,16 +95,25 @@ create_new_deployment() {
         return 1
     fi
 
-    # Get next available port
-    echo "Finding next available port..."
-    port=$(get_next_available_port)
-    if [ $? -ne 0 ]; then
-        echo "❌ $port"
-        echo "Press Enter to continue..."
-        read
-        return 1
+    # Detect if nginx is containerized
+    nginx_containerized=false
+    if docker ps --filter "name=openwebui-nginx" --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
+        nginx_containerized=true
+        echo "✓ Detected containerized nginx - deployment will use openwebui-network"
+        port="N/A"  # Port not needed for containerized nginx
+    else
+        echo "ℹ️  Using host nginx mode"
+        # Get next available port
+        echo "Finding next available port..."
+        port=$(get_next_available_port)
+        if [ $? -ne 0 ]; then
+            echo "❌ $port"
+            echo "Press Enter to continue..."
+            read
+            return 1
+        fi
+        echo "✅ Port $port is available"
     fi
-    echo "✅ Port $port is available"
 
     # Determine what auto-detect would use (for display in prompt)
     if [ -f "/etc/hostname" ] && grep -q "droplet\|server\|prod\|ubuntu\|digital" /etc/hostname 2>/dev/null; then
@@ -120,7 +129,11 @@ create_new_deployment() {
         default_domain="${client_name}.quantabase.io"
     else
         # Development environment
-        default_domain="localhost:${port}"
+        if [ "$nginx_containerized" = true ]; then
+            default_domain="localhost"
+        else
+            default_domain="localhost:${port}"
+        fi
     fi
 
     # Get domain (optional - auto-detect if empty)
@@ -135,7 +148,11 @@ create_new_deployment() {
 
         # Set redirect URI and environment based on domain type
         if [[ "$resolved_domain" == localhost* ]] || [[ "$resolved_domain" == 127.0.0.1* ]]; then
-            redirect_uri="http://127.0.0.1:${port}/oauth/google/callback"
+            if [ "$nginx_containerized" = true ]; then
+                redirect_uri="http://localhost/oauth/google/callback"
+            else
+                redirect_uri="http://127.0.0.1:${port}/oauth/google/callback"
+            fi
             environment="development"
         else
             redirect_uri="https://${resolved_domain}/oauth/google/callback"
@@ -186,7 +203,11 @@ create_new_deployment() {
     echo "Client Name:     $client_name"
     echo "FQDN:            $resolved_domain"
     echo "Container:       $container_name"
-    echo "Port:            $port"
+    if [ "$nginx_containerized" = true ]; then
+        echo "Network Mode:    openwebui-network (no port mapping)"
+    else
+        echo "Port:            $port"
+    fi
     echo "Environment:     $environment"
     echo "Redirect URI:    $redirect_uri"
     echo "OAuth Domains:   $oauth_domains"
@@ -206,12 +227,21 @@ create_new_deployment() {
         if [ $? -eq 0 ]; then
             echo "✅ Deployment created successfully!"
             echo
-            echo "Next steps:"
-            echo "1. Add nginx configuration for domain: $resolved_domain"
-            echo "2. Update Google OAuth redirect URI: $redirect_uri"
-            echo "3. Configure DNS for: $resolved_domain"
-            echo
-            echo "Access at: http://localhost:$port"
+            if [ "$nginx_containerized" = true ]; then
+                echo "Next steps:"
+                echo "1. Configure nginx for domain: $resolved_domain (use option 5)"
+                echo "2. Update Google OAuth redirect URI: $redirect_uri"
+                echo "3. Configure DNS for: $resolved_domain"
+                echo
+                echo "After nginx configuration, access at: https://$resolved_domain"
+            else
+                echo "Next steps:"
+                echo "1. Add nginx configuration for domain: $resolved_domain"
+                echo "2. Update Google OAuth redirect URI: $redirect_uri"
+                echo "3. Configure DNS for: $resolved_domain"
+                echo
+                echo "Access at: http://localhost:$port"
+            fi
         else
             echo "❌ Failed to create deployment"
         fi
