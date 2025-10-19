@@ -40,21 +40,118 @@ check_root_ssh_status() {
     fi
 }
 
+check_firewall_status() {
+    # Check if UFW firewall is configured according to setup/README recommendations
+    # Required: UFW enabled, ports 22, 80, 443 allowed
+
+    # Check if UFW is installed
+    if ! command -v ufw &> /dev/null; then
+        echo "not_installed"
+        return
+    fi
+
+    # Check if UFW is enabled
+    local ufw_status=$(sudo ufw status 2>/dev/null | head -1)
+    if [[ ! "$ufw_status" =~ "Status: active" ]]; then
+        echo "not_configured"
+        return
+    fi
+
+    # Check if required ports are allowed
+    local ufw_rules=$(sudo ufw status numbered 2>/dev/null)
+    local port_22_allowed=false
+    local port_80_allowed=false
+    local port_443_allowed=false
+
+    if echo "$ufw_rules" | grep -q "22/tcp.*ALLOW"; then
+        port_22_allowed=true
+    fi
+
+    if echo "$ufw_rules" | grep -q "80/tcp.*ALLOW"; then
+        port_80_allowed=true
+    fi
+
+    if echo "$ufw_rules" | grep -q "443/tcp.*ALLOW"; then
+        port_443_allowed=true
+    fi
+
+    # All required ports must be allowed
+    if [[ "$port_22_allowed" == true ]] && [[ "$port_80_allowed" == true ]] && [[ "$port_443_allowed" == true ]]; then
+        echo "configured"
+    else
+        echo "not_configured"
+    fi
+}
+
+check_fail2ban_status() {
+    # Check if fail2ban is installed and active
+    if ! command -v fail2ban-client &> /dev/null; then
+        echo "not_installed"
+        return
+    fi
+
+    # Check if fail2ban service is active
+    if systemctl is-active --quiet fail2ban 2>/dev/null; then
+        echo "active"
+    else
+        echo "inactive"
+    fi
+}
+
+check_ssh_password_auth() {
+    # Check if SSH password authentication is disabled
+    local password_auth=$(sudo grep -E "^PasswordAuthentication" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}')
+
+    if [[ "$password_auth" == "no" ]] || [[ "$password_auth" == "No" ]]; then
+        echo "disabled"
+    else
+        echo "enabled"
+    fi
+}
+
+check_auto_updates() {
+    # Check if unattended-upgrades is installed and configured
+    if ! command -v unattended-upgrade &> /dev/null; then
+        echo "not_installed"
+        return
+    fi
+
+    # Check if unattended-upgrades is enabled
+    if systemctl is-enabled --quiet unattended-upgrades 2>/dev/null || \
+       systemctl is-enabled --quiet apt-daily-upgrade.timer 2>/dev/null; then
+        echo "configured"
+    else
+        echo "not_configured"
+    fi
+}
+
+count_security_issues() {
+    # Count the number of security configurations that need attention
+    local issues=0
+
+    local root_ssh=$(check_root_ssh_status)
+    [[ "$root_ssh" != "secured" ]] && ((issues++))
+
+    local firewall=$(check_firewall_status)
+    [[ "$firewall" != "configured" ]] && ((issues++))
+
+    local fail2ban=$(check_fail2ban_status)
+    [[ "$fail2ban" != "active" ]] && ((issues++))
+
+    local ssh_password=$(check_ssh_password_auth)
+    [[ "$ssh_password" != "disabled" ]] && ((issues++))
+
+    local auto_updates=$(check_auto_updates)
+    [[ "$auto_updates" != "configured" ]] && ((issues++))
+
+    echo $issues
+}
+
 show_main_menu() {
     clear
     echo "╔════════════════════════════════════════╗"
     echo "║       Open WebUI Client Manager        ║"
     echo "╚════════════════════════════════════════╝"
-    echo
-
-    # Check SSH root login status
-    local root_ssh_status=$(check_root_ssh_status)
-    if [[ "$root_ssh_status" == "secured" ]]; then
-        echo "Security: ✅ Root SSH secured"
-    else
-        echo "⚠️  Security: Root SSH password login is ENABLED"
-        echo "   Secure it with: sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && sudo systemctl reload sshd"
-    fi
     echo
 
     # Check if nginx is deployed to change menu text
@@ -65,14 +162,24 @@ show_main_menu() {
         nginx_option="2) Deploy nginx Container"
     fi
 
+    # Check security status for menu item
+    local security_issues=$(count_security_issues)
+    local security_option
+    if [[ "$security_issues" -gt 0 ]]; then
+        security_option="7) ❌ Security Advisement ($security_issues issues)"
+    else
+        security_option="7) Security Advisor"
+    fi
+
     echo "1) View Deployment Status"
     echo "$nginx_option"
     echo "3) Create New Deployment"
     echo "4) Manage Client Deployment"
     echo "5) Manage Sync Cluster"
     echo "6) Exit"
+    echo "$security_option"
     echo
-    echo -n "Please select an option (1-6): "
+    echo -n "Please select an option (1-7): "
 }
 
 # Detect container type (sync-node vs client)
@@ -3006,6 +3113,118 @@ show_logs() {
     docker logs -f "openwebui-$2"
 }
 
+show_security_advisor_menu() {
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║          Security Advisor              ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+
+        local issues=0
+
+        # 1. Root SSH Login
+        echo "1. Root SSH Login Protection"
+        local root_ssh=$(check_root_ssh_status)
+        if [[ "$root_ssh" == "secured" ]]; then
+            echo "   ✅ Secured (prohibit-password or no)"
+        else
+            echo "   ❌ VULNERABLE - Password login enabled"
+            echo "   Fix: sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && sudo systemctl reload sshd"
+            ((issues++))
+        fi
+        echo
+
+        # 2. Firewall Configuration
+        echo "2. Firewall (UFW)"
+        local firewall=$(check_firewall_status)
+        if [[ "$firewall" == "configured" ]]; then
+            echo "   ✅ Configured (ports 22, 80, 443 allowed)"
+        elif [[ "$firewall" == "not_installed" ]]; then
+            echo "   ❌ NOT INSTALLED"
+            echo "   Install: sudo apt-get install -y ufw"
+            echo "   Configure: sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw enable"
+            ((issues++))
+        else
+            echo "   ❌ NOT CONFIGURED"
+            echo "   Fix: sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp && sudo ufw enable"
+            ((issues++))
+        fi
+        echo
+
+        # 3. fail2ban
+        echo "3. fail2ban (SSH Brute Force Protection)"
+        local fail2ban=$(check_fail2ban_status)
+        if [[ "$fail2ban" == "active" ]]; then
+            echo "   ✅ Active and running"
+        elif [[ "$fail2ban" == "not_installed" ]]; then
+            echo "   ❌ NOT INSTALLED"
+            echo "   Install: sudo apt-get install -y fail2ban && sudo systemctl enable fail2ban && sudo systemctl start fail2ban"
+            ((issues++))
+        else
+            echo "   ❌ INSTALLED BUT NOT ACTIVE"
+            echo "   Fix: sudo systemctl enable fail2ban && sudo systemctl start fail2ban"
+            ((issues++))
+        fi
+        echo
+
+        # 4. SSH Password Authentication
+        echo "4. SSH Password Authentication"
+        local ssh_password=$(check_ssh_password_auth)
+        if [[ "$ssh_password" == "disabled" ]]; then
+            echo "   ✅ Disabled (key-only authentication)"
+        else
+            echo "   ❌ ENABLED - Vulnerable to brute force"
+            echo "   Fix: echo 'PasswordAuthentication no' | sudo tee -a /etc/ssh/sshd_config && sudo systemctl reload sshd"
+            echo "   Note: Ensure SSH key access works BEFORE disabling password auth!"
+            ((issues++))
+        fi
+        echo
+
+        # 5. Automatic Security Updates
+        echo "5. Automatic Security Updates"
+        local auto_updates=$(check_auto_updates)
+        if [[ "$auto_updates" == "configured" ]]; then
+            echo "   ✅ Configured (unattended-upgrades)"
+        elif [[ "$auto_updates" == "not_installed" ]]; then
+            echo "   ❌ NOT INSTALLED"
+            echo "   Install: sudo apt-get install -y unattended-upgrades && sudo dpkg-reconfigure -plow unattended-upgrades"
+            ((issues++))
+        else
+            echo "   ❌ INSTALLED BUT NOT ENABLED"
+            echo "   Fix: sudo dpkg-reconfigure -plow unattended-upgrades"
+            ((issues++))
+        fi
+        echo
+
+        # Summary
+        echo "═══════════════════════════════════════"
+        if [[ $issues -eq 0 ]]; then
+            echo "✅ All security configurations are properly set!"
+        else
+            echo "⚠️  $issues security issue(s) need attention"
+        fi
+        echo "═══════════════════════════════════════"
+        echo
+        echo "See setup/README for detailed security guidance"
+        echo
+        echo "0) Return to Main Menu"
+        echo
+        echo -n "Enter option: "
+
+        read sec_choice
+
+        case "$sec_choice" in
+            0)
+                return
+                ;;
+            *)
+                # Any other key refreshes the display
+                ;;
+        esac
+    done
+}
+
 # Main execution logic
 if [ $# -eq 0 ]; then
     # Interactive menu mode
@@ -3036,6 +3255,9 @@ if [ $# -eq 0 ]; then
             6)
                 echo "Goodbye!"
                 exit 0
+                ;;
+            7)
+                show_security_advisor_menu
                 ;;
             *)
                 echo "Invalid choice. Press Enter to continue..."

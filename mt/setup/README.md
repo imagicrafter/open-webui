@@ -139,6 +139,20 @@ sudo systemctl reload sshd
 
 The setup script configures SSH key authentication. Never use password authentication for production servers.
 
+### 2.5. Disable SSH Password Authentication ⭐ Important
+
+For maximum security, explicitly disable password authentication in SSH configuration:
+
+```bash
+# Add PasswordAuthentication no to sshd_config
+echo 'PasswordAuthentication no' | sudo tee -a /etc/ssh/sshd_config
+sudo systemctl reload sshd
+```
+
+**CRITICAL:** Verify SSH key access works BEFORE disabling password authentication! Test with a second terminal session.
+
+This prevents brute force password attacks even if an attacker discovers valid usernames.
+
 ### 3. Configure Firewall
 
 ```bash
@@ -149,12 +163,73 @@ sudo ufw allow 443/tcp  # HTTPS
 sudo ufw enable
 ```
 
-### 4. Keep System Updated
+### 3.5. Install fail2ban (SSH Brute Force Protection) ⭐ Important
 
+Protect your server from SSH brute force attacks:
+
+```bash
+# Install and enable fail2ban
+sudo apt-get install -y fail2ban
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+```
+
+**What it does:**
+- Monitors SSH login attempts
+- Automatically bans IPs with repeated failed login attempts
+- Default: 5 failed attempts = 10 minute ban
+- Essential for any server exposed to the internet
+
+**Check status:**
+```bash
+# View fail2ban status
+sudo fail2ban-client status sshd
+
+# View banned IPs
+sudo fail2ban-client get sshd banned
+```
+
+### 4. Keep System Updated and Configure Automatic Security Updates
+
+**Manual Updates:**
 ```bash
 sudo apt-get update
 sudo apt-get upgrade -y
 ```
+
+**Automatic Security Updates (Recommended):**
+
+Configure `unattended-upgrades` to automatically install security patches:
+
+```bash
+# Install unattended-upgrades
+sudo apt-get install -y unattended-upgrades
+
+# Configure automatic security updates
+sudo dpkg-reconfigure -plow unattended-upgrades
+# Select "Yes" when prompted
+
+# Enable automatic updates
+sudo systemctl enable unattended-upgrades
+sudo systemctl start unattended-upgrades
+```
+
+**What it does:**
+- Automatically installs security updates daily
+- Prevents running outdated/vulnerable packages
+- Only updates stable security patches (not breaking changes)
+- Sends email notifications (if configured)
+
+**Check status:**
+```bash
+# View unattended-upgrades status
+sudo systemctl status unattended-upgrades
+
+# View update logs
+sudo cat /var/log/unattended-upgrades/unattended-upgrades.log
+```
+
+**Configuration file:** `/etc/apt/apt.conf.d/50unattended-upgrades`
 
 ### 5. Monitor Docker Access
 
@@ -181,6 +256,152 @@ docker events --since 24h
 
 # Check sudo usage
 sudo cat /var/log/auth.log | grep sudo
+```
+
+### 7. Backup Configuration ⭐ Important
+
+Regular backups are critical for disaster recovery. Back up these components:
+
+#### What to Back Up
+
+**1. Docker Volumes (Client Data)**
+```bash
+# List all Open WebUI volumes
+docker volume ls | grep openwebui
+
+# Back up a specific client volume
+docker run --rm \
+  -v openwebui-CLIENT-NAME-data:/data \
+  -v $(pwd):/backup \
+  alpine tar czf /backup/openwebui-CLIENT-NAME-data-$(date +%Y%m%d).tar.gz -C /data .
+```
+
+**2. nginx Configuration**
+```bash
+# Back up nginx configs
+sudo tar czf nginx-config-backup-$(date +%Y%m%d).tar.gz \
+  /opt/openwebui-nginx/
+```
+
+**3. SSL Certificates**
+```bash
+# Back up Let's Encrypt certificates
+sudo tar czf letsencrypt-backup-$(date +%Y%m%d).tar.gz \
+  /etc/letsencrypt/
+```
+
+**4. Complete System Backup**
+```bash
+# Back up all critical components at once
+sudo tar czf openwebui-full-backup-$(date +%Y%m%d).tar.gz \
+  /opt/openwebui-nginx/ \
+  /etc/letsencrypt/ \
+  /home/qbmgr/open-webui/
+
+# Note: Docker volumes backed up separately (see above)
+```
+
+#### Automated Backup Script
+
+Create a backup script that runs daily:
+
+```bash
+# Create backup script
+sudo nano /usr/local/bin/backup-openwebui.sh
+```
+
+```bash
+#!/bin/bash
+# Automated Open WebUI Backup Script
+
+BACKUP_DIR="/home/qbmgr/backups"
+DATE=$(date +%Y%m%d)
+
+mkdir -p "$BACKUP_DIR"
+
+# Back up nginx configs
+tar czf "$BACKUP_DIR/nginx-$DATE.tar.gz" /opt/openwebui-nginx/ 2>/dev/null
+
+# Back up SSL certs
+tar czf "$BACKUP_DIR/ssl-$DATE.tar.gz" /etc/letsencrypt/ 2>/dev/null
+
+# Back up all client volumes
+for volume in $(docker volume ls --format "{{.Name}}" | grep openwebui); do
+    docker run --rm \
+      -v $volume:/data \
+      -v $BACKUP_DIR:/backup \
+      alpine tar czf /backup/$volume-$DATE.tar.gz -C /data . 2>/dev/null
+done
+
+# Delete backups older than 30 days
+find "$BACKUP_DIR" -name "*.tar.gz" -mtime +30 -delete
+
+echo "Backup completed: $DATE"
+```
+
+```bash
+# Make executable
+sudo chmod +x /usr/local/bin/backup-openwebui.sh
+
+# Test the backup
+sudo /usr/local/bin/backup-openwebui.sh
+```
+
+**Schedule Daily Backups:**
+```bash
+# Add to crontab (runs daily at 2 AM)
+(sudo crontab -l 2>/dev/null; echo "0 2 * * * /usr/local/bin/backup-openwebui.sh >> /var/log/openwebui-backup.log 2>&1") | sudo crontab -
+```
+
+#### Restore from Backup
+
+**Restore nginx configuration:**
+```bash
+sudo tar xzf nginx-config-backup-20250117.tar.gz -C /
+docker exec openwebui-nginx nginx -s reload
+```
+
+**Restore SSL certificates:**
+```bash
+sudo tar xzf letsencrypt-backup-20250117.tar.gz -C /
+docker exec openwebui-nginx nginx -s reload
+```
+
+**Restore client volume:**
+```bash
+# Stop the container first
+docker stop openwebui-CLIENT-NAME
+
+# Restore volume data
+docker run --rm \
+  -v openwebui-CLIENT-NAME-data:/data \
+  -v $(pwd):/backup \
+  alpine sh -c "cd /data && tar xzf /backup/openwebui-CLIENT-NAME-data-20250117.tar.gz"
+
+# Start container
+docker start openwebui-CLIENT-NAME
+```
+
+#### Off-Site Backup Recommendations
+
+For production systems, store backups off-site:
+
+**Digital Ocean Spaces (S3-compatible):**
+```bash
+# Install s3cmd
+sudo apt-get install -y s3cmd
+
+# Configure with DO Spaces credentials
+s3cmd --configure
+
+# Upload backups
+s3cmd put /home/qbmgr/backups/*.tar.gz s3://your-bucket/openwebui-backups/
+```
+
+**rsync to Remote Server:**
+```bash
+# Sync backups to remote server
+rsync -avz /home/qbmgr/backups/ user@backup-server:/backups/openwebui/
 ```
 
 ## Comparison: Root vs qbmgr User

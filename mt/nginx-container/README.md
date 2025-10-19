@@ -31,6 +31,43 @@ cd /path/to/open-webui/mt
 - **Docker Network Benefits**: Automatic DNS resolution, network isolation, and service discovery
 - **Automated SSL Setup**: Built-in integration with Let's Encrypt for HTTPS
 
+## How SSL Setup Works
+
+This setup uses **Let's Encrypt** with the **HTTP-01 challenge method** for automated SSL certificate issuance and renewal.
+
+### Let's Encrypt HTTP-01 Challenge Process
+
+The SSL certificate process works as follows:
+
+1. **Certbot requests certificate** from Let's Encrypt for your domain (e.g., `chat.quantabase.io`)
+2. **Let's Encrypt validates domain ownership** by requiring a challenge file to be served at:
+   ```
+   http://yourdomain.com/.well-known/acme-challenge/RANDOM_TOKEN
+   ```
+3. **nginx serves the challenge file** from the mounted webroot directory (`/opt/openwebui-nginx/webroot/`)
+4. **Let's Encrypt verifies ownership** by making an HTTP request to the challenge URL
+5. **Certificate is issued** and installed automatically
+
+### Requirements for SSL to Work
+
+For Let's Encrypt to successfully issue certificates, you need:
+
+- ✅ **Domain DNS** pointing to your droplet IP address (A record)
+- ✅ **Port 80 accessible** - Required for HTTP-01 challenge validation
+- ✅ **Port 443 accessible** - Required for HTTPS traffic after certificate issuance
+- ✅ **nginx webroot** configured at `/opt/openwebui-nginx/webroot/`
+- ✅ **DNS propagation complete** - Domain must resolve before requesting certificate
+
+### Why This Works with Any DNS Provider
+
+The Let's Encrypt process is **domain-registrar agnostic** - it doesn't matter where your domain is hosted (GoDaddy, Cloudflare, Namecheap, etc.) as long as:
+
+- The domain's DNS A record points to your server's IP
+- HTTP traffic on port 80 reaches your nginx container
+- The domain is publicly resolvable
+
+This means you can use domains from **any DNS provider** with this setup. See the "DNS Provider Compatibility" section below for provider-specific configuration details.
+
 ## Architecture
 
 ```
@@ -98,6 +135,171 @@ sudo netstat -tlnp | grep -E ':80|:443'
 # If host nginx is running, you'll need to stop it first
 sudo systemctl status nginx
 ```
+
+## DNS Provider Compatibility
+
+The nginx SSL setup works with **any DNS provider** - the configuration is provider-agnostic. This section documents tested providers and their specific configuration requirements.
+
+> **Note**: This section will be updated as additional DNS providers are tested and verified.
+
+### Tested DNS Providers
+
+| Provider | Status | Proxy Feature | Notes |
+|----------|--------|---------------|-------|
+| **Cloudflare** | ✅ Verified | Yes (optional) | Works with or without proxy enabled |
+| **GoDaddy** | ✅ Verified | No | Direct DNS only, no proxy feature |
+
+### Key Differences Between DNS Providers
+
+| Aspect | Cloudflare | GoDaddy |
+|--------|-----------|---------|
+| **Primary Service** | CDN + Proxy + DNS | Domain Registrar + DNS |
+| **Proxy Feature** | Yes (orange cloud) - proxies traffic | No - direct DNS only |
+| **SSL Options** | Flexible SSL, Full SSL, Full (Strict) | N/A - just DNS |
+| **IP Visibility** | Can hide origin IP | Shows real droplet IP |
+| **DNS Propagation** | Fast (seconds to minutes) | Standard (minutes to hours) |
+| **DDoS Protection** | Yes (when proxied) | No |
+| **Caching** | Yes (when proxied) | No |
+
+### Cloudflare Configuration
+
+Cloudflare offers two modes: **Proxied** (orange cloud) or **DNS only** (gray cloud).
+
+#### Option 1: DNS Only Mode (Gray Cloud) - Recommended for Simplicity
+
+**Configuration:**
+1. Log in to Cloudflare dashboard
+2. Go to DNS management
+3. Add A record:
+   - **Type**: A
+   - **Name**: `chat` (or your subdomain)
+   - **IPv4 address**: Your Digital Ocean droplet IP
+   - **Proxy status**: **DNS only** (gray cloud icon)
+   - **TTL**: Auto
+4. Save and wait for propagation (usually instant)
+
+**SSL Configuration:**
+- No special Cloudflare SSL settings needed
+- Let's Encrypt handles SSL directly on your server
+- This is the simplest configuration
+
+#### Option 2: Proxied Mode (Orange Cloud) - Advanced
+
+**Configuration:**
+1. Add A record as above but set **Proxy status**: **Proxied** (orange cloud icon)
+2. Configure Cloudflare SSL/TLS settings:
+   - Go to **SSL/TLS** → **Overview**
+   - Set mode to **Full** or **Full (Strict)**
+   - **Do NOT use "Flexible"** - this causes redirect loops
+
+**How It Works:**
+- Cloudflare sits between users and your server
+- Traffic flows: User → Cloudflare (HTTPS) → Your Server (HTTPS)
+- Cloudflare's IP is publicly visible, not your droplet IP
+- Provides DDoS protection and caching
+
+**Advantages:**
+- ✅ Hides your origin server IP
+- ✅ DDoS protection
+- ✅ CDN caching for static assets
+- ✅ Web Application Firewall (WAF) available
+
+**Considerations:**
+- Cloudflare sees all traffic (man-in-the-middle)
+- Slightly higher latency due to extra hop
+- Let's Encrypt still validates via HTTP-01 (works fine)
+
+### GoDaddy Configuration
+
+GoDaddy provides **DNS only** - no proxy feature available.
+
+**Configuration:**
+1. Log in to GoDaddy account
+2. Go to **My Products** → **DNS** for your domain
+3. Click **Add** to create a new record
+4. Add A record:
+   - **Type**: A
+   - **Name**: `chat` (or your subdomain)
+   - **Value**: Your Digital Ocean droplet IP
+   - **TTL**: 600 (10 minutes) or 3600 (1 hour)
+5. Save and wait for propagation (typically 10-30 minutes)
+
+**Characteristics:**
+- ✅ Simple, direct configuration
+- ✅ Lower latency (no intermediary)
+- ✅ What you configure is what you get
+- ⚠️ Your droplet IP is publicly visible
+- ⚠️ No built-in DDoS protection
+- ⚠️ No caching layer
+
+### Testing DNS Propagation
+
+Before attempting SSL setup, verify DNS is working:
+
+```bash
+# Test DNS resolution
+dig chat.yourdomain.com +short
+# Should return your droplet IP
+
+# Alternative using nslookup
+nslookup chat.yourdomain.com
+# Should show your droplet IP in the answer
+
+# Test from multiple DNS servers
+dig @8.8.8.8 chat.yourdomain.com +short  # Google DNS
+dig @1.1.1.1 chat.yourdomain.com +short  # Cloudflare DNS
+```
+
+**When DNS is ready:**
+- All commands should return your droplet IP
+- You can proceed with client deployment and SSL setup
+
+### Security Considerations by Provider
+
+#### With GoDaddy (Direct DNS)
+
+Since your droplet IP is publicly visible, configure firewall protection:
+
+```bash
+# Configure UFW firewall
+sudo ufw allow 22/tcp   # SSH
+sudo ufw allow 80/tcp   # HTTP (needed for Let's Encrypt)
+sudo ufw allow 443/tcp  # HTTPS
+sudo ufw enable
+
+# Install fail2ban for SSH protection
+sudo apt-get install fail2ban -y
+sudo systemctl enable fail2ban
+sudo systemctl start fail2ban
+```
+
+#### With Cloudflare (Proxied)
+
+If using Cloudflare proxy (orange cloud):
+
+```bash
+# Optional: Restrict access to Cloudflare IPs only
+# This prevents direct IP access bypassing Cloudflare
+# See: https://www.cloudflare.com/ips/
+
+# Basic firewall (same as GoDaddy)
+sudo ufw allow 22/tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+```
+
+### Adding New DNS Providers
+
+When testing with additional DNS providers, document:
+
+1. **Provider name** and primary service type
+2. **DNS record configuration** steps
+3. **Special features** (proxy, CDN, etc.)
+4. **DNS propagation time** observed
+5. **Any gotchas or special considerations**
+
+Update this section with findings for future reference.
 
 ## Deployment Options
 
