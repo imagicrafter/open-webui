@@ -178,9 +178,9 @@ Quick Start Commands:
    docker ps
 
 Documentation:
-  - Quick Start: ~/open-webui/mt/QUICKSTART-FRESH-DEPLOYMENT.md
+  - Main Guide: ~/open-webui/mt/README.md (Getting Started section)
   - nginx Setup: ~/open-webui/mt/nginx-container/README.md
-  - Multi-tenant: ~/open-webui/mt/README.md
+  - Setup Details: ~/open-webui/mt/setup/README.md
 
 Security Note:
   Root SSH is still enabled. After testing qbmgr access, disable it:

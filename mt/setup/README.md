@@ -299,8 +299,8 @@ docker logs -f openwebui-nginx
 ## Files in This Directory
 
 - **`quick-setup.sh`** - Non-interactive setup script (one command)
-- **`QUICKSTART.md`** - Quick reference guide with copy/paste commands
-- **`README.md`** - This file (full documentation)
+- **`README.md`** - This file (detailed setup documentation)
+- **`../README.md`** - Main multi-tenant guide with Getting Started section
 
 ## Additional Resources
 
@@ -319,4 +319,4 @@ If you encounter issues:
 
 ---
 
-**For the fastest setup:** See `QUICKSTART.md` for a simplified copy/paste guide.
+**For the fastest setup:** See `../README.md` (Getting Started section) for a step-by-step guide.
