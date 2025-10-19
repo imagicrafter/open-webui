@@ -179,7 +179,7 @@ create_new_deployment() {
     fi
 
     # Show configuration summary
-    echo
+    clear
     echo "╔════════════════════════════════════════╗"
     echo "║         Deployment Summary             ║"
     echo "╚════════════════════════════════════════╝"
