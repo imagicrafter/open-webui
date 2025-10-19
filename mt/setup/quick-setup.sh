@@ -226,9 +226,14 @@ else
 fi
 
 echo
-echo -e "${GREEN}All done! Switching to qbmgr user and starting client-manager...${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}🎉 Setup Complete! 🎉${NC}"
+echo -e "${GREEN}═══════════════════════════════════════════════════════════${NC}"
 echo
-sleep 2
-
-# Switch to qbmgr user and start client-manager
-exec su - "$DEPLOY_USER"
+echo -e "${BLUE}Next Step:${NC}"
+echo -e "  1. ${BLUE}Exit this root session${NC}"
+echo -e "  2. ${BLUE}SSH as qbmgr to auto-start client-manager:${NC}"
+echo -e "     ${YELLOW}ssh qbmgr@${DROPLET_IP}${NC}"
+echo
+echo -e "${GREEN}The client-manager will start automatically on login!${NC}"
+echo
