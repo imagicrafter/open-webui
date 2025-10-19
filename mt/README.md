@@ -2,6 +2,154 @@
 
 This directory contains scripts for running multiple isolated Open WebUI instances for different clients.
 
+## Getting Started
+
+### Step 1: Create Digital Ocean Droplet
+
+1. **Log in to Digital Ocean** and click "Create" → "Droplets"
+
+2. **Choose Region** - Select the region closest to your users
+
+3. **Choose Image** - **IMPORTANT**: Select "Marketplace" → Search for "Docker on Ubuntu"
+   - This provides a pre-configured Ubuntu environment with Docker installed
+
+4. **Choose Size** - Minimum configuration:
+   - **Droplet Type**: Regular SSD
+   - **CPU**: 1 vCPU
+   - **RAM**: 2GB
+   - **Storage**: 50GB SSD
+
+   > 📝 **Resource Requirements**: [TODO: Add memory requirements per deployment after testing]
+
+5. **Add SSH Key** (Recommended)
+   - Click "New SSH Key" and paste your public key
+   - To get your public key: `cat ~/.ssh/id_rsa.pub` (or `~/.ssh/id_ed25519.pub`)
+   - Adding your key during creation is less error-prone than providing it to the script later
+
+6. **Advanced Options**
+   - ✅ **Enable Monitoring** - Provides CPU, bandwidth, and disk metrics
+   - ✅ **Enable IPv6** - **REQUIRED** for syncing with Supabase
+
+7. **Finalize and Create**
+   - Choose a hostname (e.g., `openwebui-prod-01`)
+   - Click "Create Droplet"
+   - Note the droplet's IP address once it's created
+
+### Step 2: Run Quick Setup
+
+SSH to your droplet as root and run the setup command:
+
+**Option 1: Auto-copy SSH key from root** (if you added SSH key during droplet creation)
+```bash
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash
+```
+
+**Option 2: Provide SSH key manually**
+```bash
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY_HERE"
+```
+
+Example with actual key:
+```bash
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDl77XDmQLq... user@hostname"
+```
+
+The setup script will:
+- ✅ Create `qbmgr` user with sudo and docker access
+- ✅ Configure SSH key authentication
+- ✅ Clone Open WebUI repository
+- ✅ Install required packages (certbot, jq, htop, tree)
+- ✅ Set up auto-start of client-manager on login
+- ✅ Configure nginx directories
+
+### Step 3: Login as qbmgr
+
+After setup completes:
+
+```bash
+exit  # Exit root session
+ssh qbmgr@YOUR_DROPLET_IP
+```
+
+The **client-manager will start automatically** and show the main menu.
+
+### Step 4: Deploy nginx and Create Clients
+
+From the client-manager menu:
+1. **Option 2**: Deploy nginx Container
+2. **Option 3**: Create New Deployment
+3. **Option 2**: Manage nginx Container → Generate nginx Configuration
+4. Follow the SSL setup wizard
+
+That's it! Your multi-tenant Open WebUI is now running.
+
+### Troubleshooting Setup
+
+#### Script fails to run
+
+**Check the error message:**
+- `Invalid SSH key format`: Ensure you copied your **public** key (starts with `ssh-rsa` or `ssh-ed25519`)
+- `Permission denied`: Make sure you're logged in as root when running the setup
+
+**Re-run the setup:**
+```bash
+# The script is idempotent - safe to run multiple times
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash
+```
+
+#### Can't SSH as qbmgr
+
+**Verify the key was added:**
+```bash
+# As root
+cat /home/qbmgr/.ssh/authorized_keys
+```
+
+**Check permissions:**
+```bash
+# As root
+ls -la /home/qbmgr/.ssh/
+# Should show: drwx------ (700) for directory
+#              -rw------- (600) for authorized_keys
+```
+
+**Fix permissions if needed:**
+```bash
+# As root
+chmod 700 /home/qbmgr/.ssh
+chmod 600 /home/qbmgr/.ssh/authorized_keys
+chown -R qbmgr:qbmgr /home/qbmgr/.ssh
+```
+
+#### Docker permission denied
+
+**Logout and login again** to activate docker group membership:
+```bash
+exit
+ssh qbmgr@YOUR_DROPLET_IP
+```
+
+**Or manually activate the group:**
+```bash
+newgrp docker
+docker ps  # Should work now
+```
+
+#### Client-manager doesn't auto-start
+
+**Check .bash_profile exists:**
+```bash
+cat ~/.bash_profile
+```
+
+**Manually start client-manager:**
+```bash
+cd ~/open-webui/mt
+./client-manager.sh
+```
+
+---
+
 ## Overview
 
 Each client gets their own:
