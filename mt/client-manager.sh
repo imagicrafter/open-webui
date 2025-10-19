@@ -27,11 +27,32 @@ show_help() {
     echo
 }
 
+check_root_ssh_status() {
+    # Check if PermitRootLogin is set to no in sshd_config
+    local permit_root=$(sudo grep -E "^PermitRootLogin" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}')
+
+    if [[ "$permit_root" == "no" ]] || [[ "$permit_root" == "No" ]]; then
+        echo "disabled"
+    else
+        echo "enabled"
+    fi
+}
+
 show_main_menu() {
     clear
     echo "╔════════════════════════════════════════╗"
     echo "║       Open WebUI Client Manager        ║"
     echo "╚════════════════════════════════════════╝"
+    echo
+
+    # Check SSH root login status
+    local root_ssh_status=$(check_root_ssh_status)
+    if [[ "$root_ssh_status" == "disabled" ]]; then
+        echo "Security: ✅ Root login disabled"
+    else
+        echo "⚠️  Security: Root SSH login is ENABLED"
+        echo "   Disable it with: sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && sudo systemctl reload sshd"
+    fi
     echo
 
     # Check if nginx is deployed to change menu text
