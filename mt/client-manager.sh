@@ -28,13 +28,15 @@ show_help() {
 }
 
 check_root_ssh_status() {
-    # Check if PermitRootLogin is set to no in sshd_config
+    # Check if PermitRootLogin is set to secure settings in sshd_config
     local permit_root=$(sudo grep -E "^PermitRootLogin" /etc/ssh/sshd_config 2>/dev/null | awk '{print $2}')
 
-    if [[ "$permit_root" == "no" ]] || [[ "$permit_root" == "No" ]]; then
-        echo "disabled"
+    # Secure settings: no, prohibit-password, without-password
+    if [[ "$permit_root" == "no" ]] || [[ "$permit_root" == "No" ]] || \
+       [[ "$permit_root" == "prohibit-password" ]] || [[ "$permit_root" == "without-password" ]]; then
+        echo "secured"
     else
-        echo "enabled"
+        echo "vulnerable"
     fi
 }
 
@@ -47,11 +49,11 @@ show_main_menu() {
 
     # Check SSH root login status
     local root_ssh_status=$(check_root_ssh_status)
-    if [[ "$root_ssh_status" == "disabled" ]]; then
-        echo "Security: ✅ Root login disabled"
+    if [[ "$root_ssh_status" == "secured" ]]; then
+        echo "Security: ✅ Root SSH secured"
     else
-        echo "⚠️  Security: Root SSH login is ENABLED"
-        echo "   Disable it with: sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config && sudo systemctl reload sshd"
+        echo "⚠️  Security: Root SSH password login is ENABLED"
+        echo "   Secure it with: sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && sudo systemctl reload sshd"
     fi
     echo
 

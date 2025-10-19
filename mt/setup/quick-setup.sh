@@ -214,7 +214,8 @@ echo -e "  ${GREEN}✅${NC} Packages: certbot, jq, htop, tree"
 echo -e "  ${GREEN}✅${NC} Auto-start: client-manager on login"
 echo
 echo -e "${YELLOW}Security Reminder:${NC}"
-echo -e "  Root SSH is still enabled. Test qbmgr access first, then disable root SSH."
+echo -e "  Root SSH password login is enabled. After testing qbmgr access, secure it with:"
+echo -e "  ${BLUE}sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/sshd_config && sudo systemctl reload sshd${NC}"
 echo
 
 # Test Docker access
