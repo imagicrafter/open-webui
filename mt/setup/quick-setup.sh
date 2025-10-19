@@ -101,6 +101,27 @@ chown -R "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.ssh"
 chmod 700 "/home/$DEPLOY_USER/.ssh"
 chmod 600 "/home/$DEPLOY_USER/.ssh/authorized_keys"
 
+# Step 4.5: Configure auto-start of client-manager on login
+echo -e "${BLUE}[4.5/8] Configuring client-manager auto-start...${NC}"
+cat > "/home/$DEPLOY_USER/.bash_profile" << 'BASH_PROFILE_EOF'
+# Auto-start client-manager on interactive SSH login
+if [[ -n "$SSH_CONNECTION" ]] || [[ -n "$SSH_CLIENT" ]]; then
+    # Check if this is an interactive shell
+    if [[ $- == *i* ]]; then
+        cd ~/open-webui/mt 2>/dev/null && ./client-manager.sh
+    fi
+fi
+
+# Source bashrc for environment setup
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+BASH_PROFILE_EOF
+
+chown "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.bash_profile"
+chmod 644 "/home/$DEPLOY_USER/.bash_profile"
+echo -e "${GREEN}✅ Auto-start configured${NC}"
+
 # Step 5: Clone Open WebUI repository
 echo -e "${BLUE}[5/8] Cloning repository...${NC}"
 REPO_PATH="/home/$DEPLOY_USER/open-webui"
@@ -190,15 +211,7 @@ else
     echo -e "  ${GREEN}✅${NC} SSH key: Configured"
 fi
 echo -e "  ${GREEN}✅${NC} Packages: certbot, jq, htop, tree"
-echo
-echo "Next Steps:"
-echo -e "  1. ${BLUE}Exit this terminal${NC}"
-echo -e "  2. ${BLUE}SSH as qbmgr:${NC}"
-echo -e "     ${YELLOW}ssh qbmgr@${DROPLET_IP}${NC}"
-echo -e "  3. ${BLUE}Start client manager:${NC}"
-echo -e "     ${YELLOW}cd ~/open-webui/mt && ./client-manager.sh${NC}"
-echo -e "  4. ${BLUE}Deploy nginx and create clients:${NC}"
-echo -e "     ${YELLOW}Use option 2 (Deploy nginx) then option 3 (Create deployment)${NC}"
+echo -e "  ${GREEN}✅${NC} Auto-start: client-manager on login"
 echo
 echo -e "${YELLOW}Security Reminder:${NC}"
 echo -e "  Root SSH is still enabled. Test qbmgr access first, then disable root SSH."
@@ -213,5 +226,9 @@ else
 fi
 
 echo
-echo -e "${GREEN}All done! You can now login as qbmgr@${DROPLET_IP}${NC}"
+echo -e "${GREEN}All done! Switching to qbmgr user and starting client-manager...${NC}"
 echo
+sleep 2
+
+# Switch to qbmgr user and start client-manager
+exec su - "$DEPLOY_USER"
