@@ -110,6 +110,12 @@ if [ -d "$REPO_PATH" ]; then
 else
     sudo -u "$DEPLOY_USER" git clone "$REPO_URL" "$REPO_PATH"
 fi
+
+# Make scripts executable
+chmod +x "$REPO_PATH/mt/client-manager.sh"
+chmod +x "$REPO_PATH/mt/nginx-container/deploy-nginx-container.sh"
+chmod +x "$REPO_PATH/mt/setup"/*.sh 2>/dev/null || true
+
 echo -e "${GREEN}✅ Repository ready at $REPO_PATH${NC}"
 
 # Step 6: Create directories
@@ -140,13 +146,12 @@ Your server is configured with:
 
 Quick Start Commands:
 
-1. Deploy nginx reverse proxy:
-   cd ~/open-webui/mt/nginx-container
-   ./deploy-nginx-container.sh
-
-2. Create/manage clients:
+1. Start the client manager:
    cd ~/open-webui/mt
    ./client-manager.sh
+
+2. Deploy nginx (option 2 in menu)
+   Then create client deployments (option 3)
 
 3. Check running containers:
    docker ps
@@ -190,10 +195,10 @@ echo "Next Steps:"
 echo -e "  1. ${BLUE}Exit this terminal${NC}"
 echo -e "  2. ${BLUE}SSH as qbmgr:${NC}"
 echo -e "     ${YELLOW}ssh qbmgr@${DROPLET_IP}${NC}"
-echo -e "  3. ${BLUE}Read welcome message:${NC}"
-echo -e "     ${YELLOW}cat ~/WELCOME.txt${NC}"
-echo -e "  4. ${BLUE}Deploy nginx:${NC}"
-echo -e "     ${YELLOW}cd ~/open-webui/mt/nginx-container && ./deploy-nginx-container.sh${NC}"
+echo -e "  3. ${BLUE}Start client manager:${NC}"
+echo -e "     ${YELLOW}cd ~/open-webui/mt && ./client-manager.sh${NC}"
+echo -e "  4. ${BLUE}Deploy nginx and create clients:${NC}"
+echo -e "     ${YELLOW}Use option 2 (Deploy nginx) then option 3 (Create deployment)${NC}"
 echo
 echo -e "${YELLOW}Security Reminder:${NC}"
 echo -e "  Root SSH is still enabled. Test qbmgr access first, then disable root SSH."

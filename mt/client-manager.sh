@@ -34,13 +34,14 @@ show_main_menu() {
     echo "╚════════════════════════════════════════╝"
     echo
     echo "1) View Deployment Status"
-    echo "2) Create New Deployment"
-    echo "3) Manage Client Deployment"
-    echo "4) Manage Sync Cluster"
-    echo "5) Generate nginx Configuration"
-    echo "6) Exit"
+    echo "2) Deploy nginx Container"
+    echo "3) Create New Deployment"
+    echo "4) Manage Client Deployment"
+    echo "5) Manage Sync Cluster"
+    echo "6) Generate nginx Configuration"
+    echo "7) Exit"
     echo
-    echo -n "Please select an option (1-6): "
+    echo -n "Please select an option (1-7): "
 }
 
 # Detect container type (sync-node vs client)
@@ -247,6 +248,58 @@ create_new_deployment() {
         fi
     else
         echo "Deployment cancelled."
+    fi
+
+    echo
+    echo "Press Enter to continue..."
+    read
+}
+
+# Deploy nginx container
+deploy_nginx_container() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║      Deploy nginx Container            ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+
+    # Check if nginx container already exists
+    if docker ps -a --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
+        local status=$(docker ps --filter "name=openwebui-nginx" --format "{{.Status}}")
+        if [[ -n "$status" ]]; then
+            echo "✅ nginx container is already deployed and running"
+            echo
+            echo "Status: $status"
+            echo "Network: openwebui-network"
+            echo
+            echo "To manage nginx:"
+            echo "  - View logs:   docker logs -f openwebui-nginx"
+            echo "  - Test config: docker exec openwebui-nginx nginx -t"
+            echo "  - Reload:      docker exec openwebui-nginx nginx -s reload"
+        else
+            echo "⚠️  nginx container exists but is not running"
+            echo
+            echo "Start it with: docker start openwebui-nginx"
+        fi
+    else
+        echo "nginx container not found. Deploy now?"
+        echo
+        echo -n "Deploy nginx container? (y/N): "
+        read confirm
+
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            echo
+            echo "Deploying nginx container..."
+            echo
+
+            # Run the deployment script
+            "${SCRIPT_DIR}/nginx-container/deploy-nginx-container.sh"
+
+            echo
+            echo "✅ nginx deployment complete!"
+        else
+            echo "Deployment cancelled."
+        fi
     fi
 
     echo
@@ -2853,18 +2906,21 @@ if [ $# -eq 0 ]; then
                 read
                 ;;
             2)
-                create_new_deployment
+                deploy_nginx_container
                 ;;
             3)
-                manage_deployment_menu
+                create_new_deployment
                 ;;
             4)
-                manage_sync_cluster_menu
+                manage_deployment_menu
                 ;;
             5)
-                generate_nginx_config
+                manage_sync_cluster_menu
                 ;;
             6)
+                generate_nginx_config
+                ;;
+            7)
                 echo "Goodbye!"
                 exit 0
                 ;;
