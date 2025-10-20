@@ -2,6 +2,120 @@
 
 This directory contains scripts for running multiple isolated Open WebUI instances for different clients.
 
+## System Requirements
+
+> **Note**: This section is continuously updated based on production observations. Memory requirements may vary based on workload, number of concurrent users, and model configurations.
+
+### Minimum Hardware Requirements
+
+Based on observed metrics in production environments:
+
+| Component | Minimum RAM | Notes |
+|-----------|-------------|-------|
+| **nginx Container** | 460 MB | With 2 client deployments configured |
+| **Open WebUI Instance** | 600 MB per instance | Per client deployment |
+| **Operating System** | 200-300 MB | Ubuntu baseline |
+| **System Overhead** | 100-200 MB | Docker, system processes |
+
+### Recommended Droplet Sizes
+
+**For 1-2 Client Deployments:**
+- **Droplet Size**: 2GB RAM / 1 vCPU / 50GB SSD
+- **Monthly Cost**: $12
+- **Memory Breakdown**:
+  - nginx: 460 MB
+  - 2 Open WebUI instances: 1,200 MB (600 MB × 2)
+  - System overhead: ~340 MB
+  - **Total**: ~2 GB
+
+**For 3-4 Client Deployments:**
+- **Droplet Size**: 4GB RAM / 2 vCPU / 80GB SSD
+- **Monthly Cost**: $24
+- **Memory Breakdown**:
+  - nginx: 460 MB
+  - 4 Open WebUI instances: 2,400 MB (600 MB × 4)
+  - System overhead: ~400 MB
+  - **Total**: ~3.3 GB
+
+**For 5-8 Client Deployments:**
+- **Droplet Size**: 8GB RAM / 4 vCPU / 160GB SSD
+- **Monthly Cost**: $48
+- **Memory Breakdown**:
+  - nginx: 460 MB
+  - 8 Open WebUI instances: 4,800 MB (600 MB × 8)
+  - System overhead: ~500 MB
+  - **Total**: ~5.8 GB
+
+### Storage Requirements
+
+- **Base Installation**: ~5 GB (Docker images, system packages)
+- **Per Client Instance**: 1-5 GB (varies with conversation history, uploaded files)
+- **SSL Certificates**: <100 MB
+- **nginx Logs**: 100 MB - 1 GB (depending on traffic and log retention)
+- **Backups**: Plan for 2x data size if storing backups locally
+
+**Recommended Storage Allocation:**
+- 1-2 clients: 50 GB SSD
+- 3-4 clients: 80 GB SSD
+- 5-8 clients: 160 GB SSD
+- 9+ clients: 320 GB SSD or add block storage
+
+### CPU Requirements
+
+- **Minimum**: 1 vCPU (suitable for light usage, 1-2 clients)
+- **Recommended**: 2 vCPUs (smooth performance, 3-4 clients)
+- **High Performance**: 4+ vCPUs (8+ clients or high concurrent usage)
+
+### Network Requirements
+
+- **Bandwidth**: 1-5 TB/month depending on usage
+- **IPv6**: **Required** if using Supabase sync functionality
+- **Ports**: 22 (SSH), 80 (HTTP), 443 (HTTPS)
+
+### Additional Considerations
+
+**Memory Scaling Factors:**
+- Memory usage increases with:
+  - Number of concurrent active users
+  - Size of LLM models being served (if using local models)
+  - Conversation history length
+  - Number of uploaded documents
+  - RAG (Retrieval-Augmented Generation) workloads
+
+**Production Recommendations:**
+- Add 20-30% memory headroom for peaks
+- Enable Digital Ocean monitoring to track actual usage
+- Set up alerts for memory > 80% utilization
+- Consider vertical scaling (upgrade droplet) vs horizontal (multiple servers)
+
+### Monitoring Current Usage
+
+Check current memory usage on your droplet:
+
+```bash
+# View overall memory usage
+free -h
+
+# View memory usage per container
+docker stats --no-stream
+
+# View memory usage for specific container
+docker stats openwebui-nginx --no-stream
+docker stats openwebui-CLIENT-NAME --no-stream
+```
+
+**Monitor in client-manager:**
+- Option 1: View Deployment Status (shows container resource usage)
+
+### Update History
+
+| Date | Component | Previous | New | Notes |
+|------|-----------|----------|-----|-------|
+| 2025-01-18 | nginx | - | 460 MB | Observed with 2 client deployments |
+| 2025-01-18 | Open WebUI | - | 600 MB | Per instance baseline |
+
+> **Contributing**: If you observe different memory requirements in your environment, please report them so we can refine these recommendations.
+
 ## Getting Started
 
 ### Step 1: Create Digital Ocean Droplet
@@ -13,13 +127,13 @@ This directory contains scripts for running multiple isolated Open WebUI instanc
 3. **Choose Image** - **IMPORTANT**: Select "Marketplace" → Search for "Docker on Ubuntu"
    - This provides a pre-configured Ubuntu environment with Docker installed
 
-4. **Choose Size** - Minimum configuration:
+4. **Choose Size** - Select based on number of client deployments:
    - **Droplet Type**: Regular SSD
-   - **CPU**: 1 vCPU
-   - **RAM**: 2GB
-   - **Storage**: 50GB SSD
+   - **1-2 clients**: 2GB RAM / 1 vCPU / 50GB SSD
+   - **3-4 clients**: 4GB RAM / 2 vCPUs / 80GB SSD
+   - **5-8 clients**: 8GB RAM / 4 vCPUs / 160GB SSD
 
-   > 📝 **Resource Requirements**: [TODO: Add memory requirements per deployment after testing]
+   > 📝 See **System Requirements** section above for detailed memory calculations and scaling guidelines.
 
 5. **Add SSH Key** (Recommended)
    - Click "New SSH Key" and paste your public key
