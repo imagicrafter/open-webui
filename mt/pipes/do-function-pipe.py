@@ -1,23 +1,31 @@
 """
-Digital Ocean Knowledge Base Agent - JSON-Aware Version 3
+Digital Ocean Knowledge Base Agent - JSON-Aware function pipe
 
 This pipe handles the case where the DO agent returns JSON directly for task operations.
 
-KEY FIX:
+KEY FEATURES:
 - DO agent returns '{"follow_ups": ["Q1", "Q2"]}' instead of plain text lines
 - Pipe now tries JSON parsing FIRST, then falls back to text parsing
 - Prevents double-nesting of JSON structures
+- Optional system notification message on first response (toggle via valve)
+- System notification works with BOTH streaming and non-streaming modes
 
 Configuration:
 1. Install this pipe in Open WebUI
 2. Select it as your main chat model
 3. Also select it as your Task Model in Settings → Interface
 4. The pipe will automatically handle both roles
+5. Configure system notification in pipe valves:
+   - ENABLE_SYSTEM_NOTIFICATION: Toggle notification on/off
+   - SYSTEM_NOTIFICATION_MESSAGE: Customize the notification text
 
 How it works:
 - Regular chat: Forwards to DO agent and streams response
 - Title generation: Extracts title (JSON or plain text)
 - Follow-up generation: Extracts follow-ups (JSON or plain text)
+- System notification: Appends to first assistant response (streaming or non-streaming)
+  * Streaming mode: Notification is appended as additional SSE chunks after response completes
+  * Non-streaming mode: Notification is appended to the response content before returning
 """
 
 from __future__ import annotations
@@ -64,6 +72,14 @@ class Pipe:
             default=True,
             description="Enable streaming responses for regular chat"
         )
+        ENABLE_SYSTEM_NOTIFICATION: bool = Field(
+            default=True,
+            description="Show system notification on first assistant response"
+        )
+        SYSTEM_NOTIFICATION_MESSAGE: str = Field(
+            default="\n\n---\n\n🤖 **Assistant In-Training**: I'm still learning to process large technical datasets—I might miss details or make wrong connections.\n\n**Helpful buttons**: Continue 👎 (to report errors) | ▶️ (if I stop mid-thought) | Regenerate 🔄 (for a fresh retry attempt if it looks like I missed something)",
+            description="Custom system notification message to display on first response"
+        )
         DEBUG_MODE: bool = Field(
             default=False,
             description="Enable debug logging to help diagnose issues"
@@ -71,8 +87,8 @@ class Pipe:
 
     def __init__(self) -> None:
         self.type = "pipe"
-        self.id = "do_kb_unified_pipe_v3"
-        self.name = "Engineering Knowledge Base (v3 JSON-Aware)"
+        self.id = "do_function_pipe"
+        self.name = "DO Function Pipe"
         self.valves = self.Valves()
 
     # Main entry point ---------------------------------------------------
@@ -335,12 +351,21 @@ class Pipe:
             )
             response.raise_for_status()
 
-            # If streaming is enabled, return the response iterator directly
+            # If streaming is enabled, wrap the response to add system notification
             if payload["stream"]:
-                return response.iter_lines()
+                if self.valves.ENABLE_SYSTEM_NOTIFICATION:
+                    return self._stream_with_system_notification(response.iter_lines(), body)
+                else:
+                    return response.iter_lines()
 
-            # For non-streaming, return the JSON response
-            return response.json()
+            # For non-streaming, get the JSON response
+            response_data = response.json()
+
+            # Check if we need to add system notification (only for first assistant message)
+            if self.valves.ENABLE_SYSTEM_NOTIFICATION:
+                response_data = self._add_system_notification_if_needed(response_data, body)
+
+            return response_data
 
         except requests.RequestException as exc:
             # Provide more detailed error information
@@ -352,6 +377,76 @@ class Pipe:
                 except:
                     error_msg += f" - Response: {exc.response.text[:500]}"
             raise RuntimeError(error_msg) from exc
+
+    def _stream_with_system_notification(
+        self,
+        stream_iter: Iterator,
+        request_body: Dict[str, Any]
+    ) -> Iterator:
+        """
+        Wrap streaming response to append system notification at the end if this is the first assistant message.
+        """
+        # Count existing assistant messages in the conversation history
+        messages = request_body.get("messages", [])
+        assistant_count = len([m for m in messages if m.get("role") == "assistant"])
+
+        # Yield all chunks from the original stream
+        for chunk in stream_iter:
+            yield chunk
+
+        # After stream is done, add the notification if this is the first assistant response
+        if assistant_count == 0:
+            notification = self.valves.SYSTEM_NOTIFICATION_MESSAGE
+
+            # Send notification as additional streaming chunks
+            # Split into smaller chunks to simulate natural streaming
+            notification_chunks = [notification[i:i+50] for i in range(0, len(notification), 50)]
+
+            for chunk_text in notification_chunks:
+                # Format as SSE (Server-Sent Events) chunk
+                chunk_data = {
+                    "choices": [{
+                        "delta": {"content": chunk_text},
+                        "index": 0,
+                        "finish_reason": None
+                    }]
+                }
+                chunk_line = f"data: {json.dumps(chunk_data)}\n\n".encode('utf-8')
+                yield chunk_line
+
+            if self.valves.DEBUG_MODE:
+                print("[DEBUG] Added system notification to streaming response")
+
+    def _add_system_notification_if_needed(
+        self,
+        response_data: Dict[str, Any],
+        request_body: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Add system notification to the response if this is the first assistant message.
+        (Used for non-streaming responses only)
+        """
+        # Count existing assistant messages in the conversation history
+        messages = request_body.get("messages", [])
+        assistant_count = len([m for m in messages if m.get("role") == "assistant"])
+
+        # If this will be the first assistant response, add the notification
+        if assistant_count == 0:
+            notification = self.valves.SYSTEM_NOTIFICATION_MESSAGE
+
+            # Add notification to the response content
+            if isinstance(response_data, dict) and "choices" in response_data:
+                choices = response_data.get("choices", [])
+                if choices and isinstance(choices[0], dict):
+                    message = choices[0].get("message", {})
+                    if "content" in message:
+                        original_content = message["content"]
+                        message["content"] = original_content + notification
+
+                        if self.valves.DEBUG_MODE:
+                            print("[DEBUG] Added system notification to first assistant response")
+
+        return response_data
 
     # DigitalOcean invocation --------------------------------------------
     def _invoke_function(
