@@ -91,7 +91,7 @@ fi
 docker_cmd="$docker_cmd \
     -v ${VOLUME_NAME}:/app/backend/data \
     --restart unless-stopped \
-    ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cbfbd7c9d1264cd43d50b3f27b03139ce6f594607dda9b901c5d59"
+    ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27"
 
 eval $docker_cmd
 

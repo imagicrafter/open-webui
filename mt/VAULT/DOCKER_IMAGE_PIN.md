@@ -14,7 +14,8 @@ After complete rollback of VAULT integration, the pipe save error **STILL OCCURR
 
 **Old Working Deployment (45.55.59.141):**
 - Created: October 17, 2025
-- Docker Image: `ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cb...`
+- Docker Image: `ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c...` (Repository Digest)
+- Image ID: `sha256:3a08de8651cb...` (Local)
 - Image Created: **September 28, 2025**
 - Status: **Pipes save successfully** ✅
 
@@ -47,7 +48,8 @@ This error occurs when:
 **Image Details:**
 - **Repository:** `ghcr.io/imagicrafter/open-webui`
 - **Tag:** `main`
-- **SHA256:** `3a08de8651cbfbd7c9d1264cd43d50b3f27b03139ce6f594607dda9b901c5d59`
+- **Repository Digest (for pulling):** `sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27`
+- **Image ID (local):** `sha256:3a08de8651cbfbd7c9d1264cd43d50b3f27b03139ce6f594607dda9b901c5d59`
 - **Created:** September 28, 2025
 - **Status:** Verified working (production deployment since Oct 17)
 
@@ -62,10 +64,10 @@ ghcr.io/imagicrafter/open-webui:main
 
 **After:**
 ```bash
-ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cbfbd7c9d1264cd43d50b3f27b03139ce6f594607dda9b901c5d59
+ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27
 ```
 
-#### 2. `mt/client-manager.sh` (3 locations: lines 2265, 2289, 2446)
+#### 2. `mt/client-manager.sh` (2 locations: lines 2265, 2289)
 
 **Before:**
 ```bash
@@ -74,7 +76,7 @@ ghcr.io/imagicrafter/open-webui:main
 
 **After:**
 ```bash
-ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cbfbd7c9d1264cd43d50b3f27b03139ce6f594607dda9b901c5d59
+ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27
 ```
 
 ---
@@ -238,7 +240,7 @@ docker inspect <container> --format='{{.Image}}'
 
 ### Check if using pinned version:
 ```bash
-docker inspect <container> --format='{{.Config.Image}}' | grep sha256:3a08de8651cb
+docker inspect <container> --format='{{.Config.Image}}' | grep sha256:bdf98b7bf21c
 ```
 
 ### Compare with old deployment:
@@ -279,12 +281,12 @@ docker inspect <new-container> --format='{{.Image}}'
 1. **Verify pin is applied:**
    ```bash
    docker inspect <container> --format='{{.Config.Image}}'
-   # Should show: ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cb...
+   # Should show: ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c...
    ```
 
 2. **Check image was pulled:**
    ```bash
-   docker images | grep 3a08de8651cb
+   docker images | grep bdf98b7bf21c
    ```
 
 3. **Recreate container:**
@@ -298,7 +300,7 @@ docker inspect <new-container> --format='{{.Image}}'
 4. **Clear Docker image cache:**
    ```bash
    docker system prune -a
-   docker pull ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cb...
+   docker pull ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c...
    ```
 
 ---
