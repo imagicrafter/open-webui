@@ -2262,7 +2262,7 @@ manage_single_deployment() {
                             -e CLIENT_NAME="$client_name" \
                             -v "${volume_name}:/app/backend/data" \
                             --restart unless-stopped \
-                            ghcr.io/imagicrafter/open-webui:main
+                            ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cbfbd7c9d1264cd43d50b3f27b03139ce6f594607dda9b901c5d59
                     else
                         # Host nginx - use port mapping
                         # Extract WEBUI_URL from redirect_uri (remove /oauth/google/callback)
@@ -2286,7 +2286,7 @@ manage_single_deployment() {
                             -e CLIENT_NAME="$client_name" \
                             -v "${volume_name}:/app/backend/data" \
                             --restart unless-stopped \
-                            ghcr.io/imagicrafter/open-webui:main
+                            ghcr.io/imagicrafter/open-webui:main@sha256:3a08de8651cbfbd7c9d1264cd43d50b3f27b03139ce6f594607dda9b901c5d59
                     fi
 
                     if [ $? -eq 0 ]; then
