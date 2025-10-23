@@ -53,11 +53,11 @@ except ImportError:
 class Pipe:
     class Valves(BaseModel):
         DIGITALOCEAN_FUNCTION_URL: str = Field(
-            default="https://rcbeoaeobumnbm6qu625b2yu.agents.do-ai.run",
+            default="https://your-digitalocean-agent-url.do-ai.run",
             description="Digital Ocean agent endpoint URL (without /api/v1/chat/completions)"
         )
         DIGITALOCEAN_FUNCTION_TOKEN: str = Field(
-            default="pynPVcBy2W-Nyn0lN6dF5KDTw1NQcGfQ",
+            default="your-digitalocean-token-here",
             description="Digital Ocean agent access token"
         )
         REQUEST_TIMEOUT_SECONDS: float = Field(
@@ -73,11 +73,11 @@ class Pipe:
             description="Enable streaming responses for regular chat"
         )
         ENABLE_SYSTEM_NOTIFICATION: bool = Field(
-            default=True,
+            default=False,
             description="Show system notification on first assistant response"
         )
         SYSTEM_NOTIFICATION_MESSAGE: str = Field(
-            default="\n\n---\n\n🤖 **Assistant In-Training**: I'm still learning to process large technical datasets—I might miss details or make wrong connections.\n\n**Helpful buttons**: Continue 👎 (to report errors) | ▶️ (if I stop mid-thought) | Regenerate 🔄 (for a fresh retry attempt if it looks like I missed something)",
+            default="Note: This assistant is still learning and may occasionally miss details or make incorrect connections.",
             description="Custom system notification message to display on first response"
         )
         DEBUG_MODE: bool = Field(

@@ -21,7 +21,7 @@ DOMAIN=$3
 CONTAINER_NAME=$4
 FQDN=$5
 OAUTH_DOMAINS="${6:-martins.net}"  # Default to martins.net if not provided
-WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Generate if not provided
+# WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Disabled - causes pipe save JSON errors
 VOLUME_NAME="${CONTAINER_NAME}-data"
 
 # Set redirect URI and environment based on domain type
@@ -87,7 +87,6 @@ docker_cmd="docker run -d \
     -e OAUTH_ALLOWED_DOMAINS=${OAUTH_DOMAINS} \
     -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
     -e WEBUI_NAME=\"QuantaBase - ${CLIENT_NAME}\" \
-    -e WEBUI_SECRET_KEY=\"${WEBUI_SECRET_KEY}\" \
     -e WEBUI_URL=\"${REDIRECT_URI%/oauth/google/callback}\" \
     -e ENABLE_VERSION_UPDATE_CHECK=false \
     -e USER_PERMISSIONS_CHAT_CONTROLS=false \

@@ -332,8 +332,9 @@ create_new_deployment() {
         oauth_domains="martins.net"
     fi
 
-    # Generate WEBUI_SECRET_KEY for OAuth session encryption
-    webui_secret_key=$(openssl rand -base64 32)
+    # Disabled: WEBUI_SECRET_KEY causes pipe save JSON errors
+    # # Generate WEBUI_SECRET_KEY for OAuth session encryption
+    # webui_secret_key=$(openssl rand -base64 32)
 
     # Sanitize domain for container naming (replace dots and colons with dashes)
     sanitized_fqdn=$(echo "$resolved_domain" | sed 's/\./-/g' | sed 's/:/-/g')
@@ -375,8 +376,8 @@ create_new_deployment() {
         echo "Creating deployment..."
 
         # Create the deployment using the template script
-        # Pass: CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN OAUTH_DOMAINS WEBUI_SECRET_KEY
-        "${SCRIPT_DIR}/start-template.sh" "$client_name" "$port" "$resolved_domain" "$container_name" "$resolved_domain" "$oauth_domains" "$webui_secret_key"
+        # Pass: CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN OAUTH_DOMAINS
+        "${SCRIPT_DIR}/start-template.sh" "$client_name" "$port" "$resolved_domain" "$container_name" "$resolved_domain" "$oauth_domains"
 
         if [ $? -eq 0 ]; then
             echo "✅ Deployment created successfully!"
@@ -2203,14 +2204,15 @@ manage_single_deployment() {
                     # Get current container configuration BEFORE stopping
                     redirect_uri=$(docker exec "$container_name" env 2>/dev/null | grep "GOOGLE_REDIRECT_URI=" | cut -d'=' -f2- 2>/dev/null || echo "")
                     webui_name=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_NAME=" | cut -d'=' -f2- 2>/dev/null || echo "QuantaBase - $client_name")
-                    webui_secret_key=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)
+                    # webui_secret_key=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)
                     fqdn=$(docker exec "$container_name" env 2>/dev/null | grep "FQDN=" | cut -d'=' -f2- 2>/dev/null || echo "")
 
-                    # Generate new secret key if not found
-                    if [[ -z "$webui_secret_key" ]]; then
-                        echo "⚠️  Generating new WEBUI_SECRET_KEY (missing from current container)"
-                        webui_secret_key=$(openssl rand -base64 32)
-                    fi
+                    # Disabled: WEBUI_SECRET_KEY causes pipe save JSON errors
+                    # # Generate new secret key if not found
+                    # if [[ -z "$webui_secret_key" ]]; then
+                    #     echo "⚠️  Generating new WEBUI_SECRET_KEY (missing from current container)"
+                    #     webui_secret_key=$(openssl rand -base64 32)
+                    # fi
 
                     if [[ -z "$redirect_uri" ]]; then
                         echo "❌ Could not retrieve container configuration. Please recreate manually."
@@ -2274,7 +2276,6 @@ manage_single_deployment() {
                             -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
                             -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                             -e WEBUI_NAME="$webui_name" \
-                            -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
                             -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
@@ -2302,7 +2303,6 @@ manage_single_deployment() {
                             -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
                             -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                             -e WEBUI_NAME="$webui_name" \
-                            -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
                             -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
@@ -2316,9 +2316,10 @@ manage_single_deployment() {
                     if [ $? -eq 0 ]; then
                         echo "✅ Container recreated successfully with new allowed domains!"
                         echo "New allowed domains: $new_domains"
-                        if [[ -z "$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)" ]]; then
-                            echo "⚠️  Note: Added WEBUI_SECRET_KEY for OAuth session security"
-                        fi
+                        # Disabled: WEBUI_SECRET_KEY no longer used (causes pipe save errors)
+                        # if [[ -z "$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)" ]]; then
+                        #     echo "⚠️  Note: Added WEBUI_SECRET_KEY for OAuth session security"
+                        # fi
                     else
                         echo "❌ Failed to recreate container. Check Docker logs."
                     fi
