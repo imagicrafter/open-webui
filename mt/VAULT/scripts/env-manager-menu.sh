@@ -399,7 +399,7 @@ view_raw_env_file() {
         echo "# No custom env file exists"
         echo "# Use option 2 to create variables"
     else
-        cat "$env_file"
+        sudo cat "$env_file"
     fi
 
     echo
