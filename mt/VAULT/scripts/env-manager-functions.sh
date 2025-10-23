@@ -56,7 +56,7 @@ create_custom_env_file() {
     local container_name="$1"
     local env_file=$(get_custom_env_file "$container_name")
 
-    cat > "$env_file" << 'EOF'
+    cat << 'EOF' | sudo tee "$env_file" > /dev/null
 # Custom Environment Variables for Open WebUI Deployment
 #
 # This file contains deployment-specific environment variables.
@@ -132,7 +132,7 @@ set_env_var() {
         fi
     else
         # Append new key
-        echo "${var_name}=${var_value}" >> "$env_file"
+        echo "${var_name}=${var_value}" | sudo tee -a "$env_file" > /dev/null
     fi
 }
 
