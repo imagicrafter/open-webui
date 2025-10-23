@@ -4,9 +4,6 @@
 # Usage: ./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]
 # FQDN-based container naming for multi-tenant deployments
 
-# Custom environment variables directory
-CUSTOM_ENV_DIR="/opt/openwebui-configs"
-
 if [ $# -lt 5 ]; then
     echo "Usage: $0 CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]"
     echo "Examples:"
@@ -21,7 +18,7 @@ DOMAIN=$3
 CONTAINER_NAME=$4
 FQDN=$5
 OAUTH_DOMAINS="${6:-martins.net}"  # Default to martins.net if not provided
-# WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Disabled - causes pipe save JSON errors
+WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Generate if not provided
 VOLUME_NAME="${CONTAINER_NAME}-data"
 
 # Set redirect URI and environment based on domain type
@@ -68,18 +65,10 @@ else
     echo "ℹ️  Using host nginx mode - deploying with port mapping"
 fi
 
-# Check for custom env file
-ENV_FILE_FLAG=""
-if [ -f "${CUSTOM_ENV_DIR}/${CONTAINER_NAME}.env" ]; then
-    ENV_FILE_FLAG="--env-file ${CUSTOM_ENV_DIR}/${CONTAINER_NAME}.env"
-    echo "✓ Loading custom environment variables from ${CONTAINER_NAME}.env"
-fi
-
 docker_cmd="docker run -d \
     --name ${CONTAINER_NAME} \
     ${PORT_CONFIG} \
     ${NETWORK_CONFIG} \
-    ${ENV_FILE_FLAG} \
     -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
     -e GOOGLE_CLIENT_SECRET=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 \
     -e GOOGLE_REDIRECT_URI=${REDIRECT_URI} \
@@ -87,6 +76,7 @@ docker_cmd="docker run -d \
     -e OAUTH_ALLOWED_DOMAINS=${OAUTH_DOMAINS} \
     -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
     -e WEBUI_NAME=\"QuantaBase - ${CLIENT_NAME}\" \
+    -e WEBUI_SECRET_KEY=\"${WEBUI_SECRET_KEY}\" \
     -e WEBUI_URL=\"${REDIRECT_URI%/oauth/google/callback}\" \
     -e ENABLE_VERSION_UPDATE_CHECK=false \
     -e USER_PERMISSIONS_CHAT_CONTROLS=false \

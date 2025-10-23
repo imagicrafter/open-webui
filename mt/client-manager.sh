@@ -5,21 +5,6 @@
 # Get the directory of this script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# Source environment variable management (from VAULT/scripts/)
-source "${SCRIPT_DIR}/VAULT/scripts/env-manager-functions.sh"
-source "${SCRIPT_DIR}/VAULT/scripts/env-manager-menu.sh"
-
-# Helper function to get env-file flag
-get_env_file_flag() {
-    local container_name="$1"
-    local env_file=$(get_custom_env_file "$container_name")
-    if [ -f "$env_file" ]; then
-        echo "--env-file \"$env_file\""
-    else
-        echo ""
-    fi
-}
-
 show_help() {
     echo "Multi-Client Open WebUI Management"
     echo "=================================="
@@ -332,9 +317,8 @@ create_new_deployment() {
         oauth_domains="martins.net"
     fi
 
-    # Disabled: WEBUI_SECRET_KEY causes pipe save JSON errors
-    # # Generate WEBUI_SECRET_KEY for OAuth session encryption
-    # webui_secret_key=$(openssl rand -base64 32)
+    # Generate WEBUI_SECRET_KEY for OAuth session encryption
+    webui_secret_key=$(openssl rand -base64 32)
 
     # Sanitize domain for container naming (replace dots and colons with dashes)
     sanitized_fqdn=$(echo "$resolved_domain" | sed 's/\./-/g' | sed 's/:/-/g')
@@ -376,8 +360,8 @@ create_new_deployment() {
         echo "Creating deployment..."
 
         # Create the deployment using the template script
-        # Pass: CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN OAUTH_DOMAINS
-        "${SCRIPT_DIR}/start-template.sh" "$client_name" "$port" "$resolved_domain" "$container_name" "$resolved_domain" "$oauth_domains"
+        # Pass: CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN OAUTH_DOMAINS WEBUI_SECRET_KEY
+        "${SCRIPT_DIR}/start-template.sh" "$client_name" "$port" "$resolved_domain" "$container_name" "$resolved_domain" "$oauth_domains" "$webui_secret_key"
 
         if [ $? -eq 0 ]; then
             echo "✅ Deployment created successfully!"
@@ -2079,10 +2063,9 @@ manage_single_deployment() {
         fi
 
         echo "10) Remove deployment (DANGER)"
-        echo "11) Env Management"
-        echo "12) Return to deployment list"
+        echo "11) Return to deployment list"
         echo
-        echo -n "Select action (1-12): "
+        echo -n "Select action (1-11): "
         read action
 
         case "$action" in
@@ -2204,15 +2187,14 @@ manage_single_deployment() {
                     # Get current container configuration BEFORE stopping
                     redirect_uri=$(docker exec "$container_name" env 2>/dev/null | grep "GOOGLE_REDIRECT_URI=" | cut -d'=' -f2- 2>/dev/null || echo "")
                     webui_name=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_NAME=" | cut -d'=' -f2- 2>/dev/null || echo "QuantaBase - $client_name")
-                    # webui_secret_key=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)
+                    webui_secret_key=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)
                     fqdn=$(docker exec "$container_name" env 2>/dev/null | grep "FQDN=" | cut -d'=' -f2- 2>/dev/null || echo "")
 
-                    # Disabled: WEBUI_SECRET_KEY causes pipe save JSON errors
-                    # # Generate new secret key if not found
-                    # if [[ -z "$webui_secret_key" ]]; then
-                    #     echo "⚠️  Generating new WEBUI_SECRET_KEY (missing from current container)"
-                    #     webui_secret_key=$(openssl rand -base64 32)
-                    # fi
+                    # Generate new secret key if not found
+                    if [[ -z "$webui_secret_key" ]]; then
+                        echo "⚠️  Generating new WEBUI_SECRET_KEY (missing from current container)"
+                        webui_secret_key=$(openssl rand -base64 32)
+                    fi
 
                     if [[ -z "$redirect_uri" ]]; then
                         echo "❌ Could not retrieve container configuration. Please recreate manually."
@@ -2262,13 +2244,9 @@ manage_single_deployment() {
                         # Extract WEBUI_URL from redirect_uri (remove /oauth/google/callback)
                         local webui_url="${redirect_uri%/oauth/google/callback}"
 
-                        # Get custom env file flag
-                        local env_file_flag=$(get_env_file_flag "$container_name")
-
                         docker run -d \
                             --name "$container_name" \
                             --network openwebui-network \
-                            ${env_file_flag} \
                             -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
                             -e GOOGLE_CLIENT_SECRET=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 \
                             -e GOOGLE_REDIRECT_URI="$redirect_uri" \
@@ -2276,6 +2254,7 @@ manage_single_deployment() {
                             -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
                             -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                             -e WEBUI_NAME="$webui_name" \
+                            -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
                             -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
@@ -2289,13 +2268,9 @@ manage_single_deployment() {
                         # Extract WEBUI_URL from redirect_uri (remove /oauth/google/callback)
                         local webui_url="${redirect_uri%/oauth/google/callback}"
 
-                        # Get custom env file flag
-                        local env_file_flag=$(get_env_file_flag "$container_name")
-
                         docker run -d \
                             --name "$container_name" \
                             -p "${port}:8080" \
-                            ${env_file_flag} \
                             -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
                             -e GOOGLE_CLIENT_SECRET=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 \
                             -e GOOGLE_REDIRECT_URI="$redirect_uri" \
@@ -2303,6 +2278,7 @@ manage_single_deployment() {
                             -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
                             -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                             -e WEBUI_NAME="$webui_name" \
+                            -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
                             -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
@@ -2316,10 +2292,9 @@ manage_single_deployment() {
                     if [ $? -eq 0 ]; then
                         echo "✅ Container recreated successfully with new allowed domains!"
                         echo "New allowed domains: $new_domains"
-                        # Disabled: WEBUI_SECRET_KEY no longer used (causes pipe save errors)
-                        # if [[ -z "$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)" ]]; then
-                        #     echo "⚠️  Note: Added WEBUI_SECRET_KEY for OAuth session security"
-                        # fi
+                        if [[ -z "$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null)" ]]; then
+                            echo "⚠️  Note: Added WEBUI_SECRET_KEY for OAuth session security"
+                        fi
                     else
                         echo "❌ Failed to recreate container. Check Docker logs."
                     fi
@@ -2453,14 +2428,9 @@ manage_single_deployment() {
 
                     # Create new container with new name and domain
                     echo "Creating new container: $new_container_name"
-
-                    # Get custom env file flag (use NEW container name)
-                    local env_file_flag=$(get_env_file_flag "$new_container_name")
-
                     docker run -d \
                         --name "$new_container_name" \
                         -p "${current_port}:8080" \
-                        ${env_file_flag} \
                         -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
                         -e GOOGLE_CLIENT_SECRET=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 \
                         -e GOOGLE_REDIRECT_URI="$new_redirect_uri" \
@@ -2705,10 +2675,6 @@ manage_single_deployment() {
                 fi
                 ;;
             11)
-                # Env Management
-                env_management_menu "$container_name"
-                ;;
-            12)
                 # Return to deployment list
                 return
                 ;;
