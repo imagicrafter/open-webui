@@ -170,5 +170,12 @@
     }
   },
   "active": "87a0253024d9ddb2",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "TECHNICAL_REFERENCE.md",
+    "SCRIPTS_REFERENCE.md",
+    "README.md",
+    "IMPLEMENTATION_STATUS.md",
+    "CLUSTER_LIFECYCLE_FAQ.md",
+    "ARCHITECTURE_UPDATE_REVIEW.md"
+  ]
 }

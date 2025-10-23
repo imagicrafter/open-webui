@@ -5,6 +5,21 @@
 # Get the directory of this script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
+# Source environment variable management (from VAULT/scripts/)
+source "${SCRIPT_DIR}/VAULT/scripts/env-manager-functions.sh"
+source "${SCRIPT_DIR}/VAULT/scripts/env-manager-menu.sh"
+
+# Helper function to get env-file flag
+get_env_file_flag() {
+    local container_name="$1"
+    local env_file=$(get_custom_env_file "$container_name")
+    if [ -f "$env_file" ]; then
+        echo "--env-file \"$env_file\""
+    else
+        echo ""
+    fi
+}
+
 show_help() {
     echo "Multi-Client Open WebUI Management"
     echo "=================================="
@@ -2063,9 +2078,10 @@ manage_single_deployment() {
         fi
 
         echo "10) Remove deployment (DANGER)"
-        echo "11) Return to deployment list"
+        echo "11) Env Management"
+        echo "12) Return to deployment list"
         echo
-        echo -n "Select action (1-11): "
+        echo -n "Select action (1-12): "
         read action
 
         case "$action" in
@@ -2244,9 +2260,13 @@ manage_single_deployment() {
                         # Extract WEBUI_URL from redirect_uri (remove /oauth/google/callback)
                         local webui_url="${redirect_uri%/oauth/google/callback}"
 
+                        # Get custom env file flag
+                        local env_file_flag=$(get_env_file_flag "$container_name")
+
                         docker run -d \
                             --name "$container_name" \
                             --network openwebui-network \
+                            ${env_file_flag} \
                             -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
                             -e GOOGLE_CLIENT_SECRET=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 \
                             -e GOOGLE_REDIRECT_URI="$redirect_uri" \
@@ -2268,9 +2288,13 @@ manage_single_deployment() {
                         # Extract WEBUI_URL from redirect_uri (remove /oauth/google/callback)
                         local webui_url="${redirect_uri%/oauth/google/callback}"
 
+                        # Get custom env file flag
+                        local env_file_flag=$(get_env_file_flag "$container_name")
+
                         docker run -d \
                             --name "$container_name" \
                             -p "${port}:8080" \
+                            ${env_file_flag} \
                             -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
                             -e GOOGLE_CLIENT_SECRET=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 \
                             -e GOOGLE_REDIRECT_URI="$redirect_uri" \
@@ -2428,9 +2452,14 @@ manage_single_deployment() {
 
                     # Create new container with new name and domain
                     echo "Creating new container: $new_container_name"
+
+                    # Get custom env file flag (use NEW container name)
+                    local env_file_flag=$(get_env_file_flag "$new_container_name")
+
                     docker run -d \
                         --name "$new_container_name" \
                         -p "${current_port}:8080" \
+                        ${env_file_flag} \
                         -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
                         -e GOOGLE_CLIENT_SECRET=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 \
                         -e GOOGLE_REDIRECT_URI="$new_redirect_uri" \
@@ -2675,6 +2704,10 @@ manage_single_deployment() {
                 fi
                 ;;
             11)
+                # Env Management
+                env_management_menu "$container_name"
+                ;;
+            12)
                 # Return to deployment list
                 return
                 ;;

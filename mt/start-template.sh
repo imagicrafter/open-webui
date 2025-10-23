@@ -4,6 +4,9 @@
 # Usage: ./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]
 # FQDN-based container naming for multi-tenant deployments
 
+# Custom environment variables directory
+CUSTOM_ENV_DIR="/opt/openwebui-configs"
+
 if [ $# -lt 5 ]; then
     echo "Usage: $0 CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]"
     echo "Examples:"
@@ -65,10 +68,18 @@ else
     echo "ℹ️  Using host nginx mode - deploying with port mapping"
 fi
 
+# Check for custom env file
+ENV_FILE_FLAG=""
+if [ -f "${CUSTOM_ENV_DIR}/${CONTAINER_NAME}.env" ]; then
+    ENV_FILE_FLAG="--env-file ${CUSTOM_ENV_DIR}/${CONTAINER_NAME}.env"
+    echo "✓ Loading custom environment variables from ${CONTAINER_NAME}.env"
+fi
+
 docker_cmd="docker run -d \
     --name ${CONTAINER_NAME} \
     ${PORT_CONFIG} \
     ${NETWORK_CONFIG} \
+    ${ENV_FILE_FLAG} \
     -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
     -e GOOGLE_CLIENT_SECRET=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 \
     -e GOOGLE_REDIRECT_URI=${REDIRECT_URI} \
