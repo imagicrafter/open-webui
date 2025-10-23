@@ -1,11 +1,12 @@
 name: Build and Push Docker Image
 
 on:
+  workflow_dispatch:  # Allow manual triggering
   push:
-    branches: [ main, quantabase-branded ]
+    branches: [ release ]  # Only auto-build on release branch
     tags: [ 'v*' ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, release ]
 
 env:
   REGISTRY: ghcr.io
@@ -40,7 +41,7 @@ jobs:
           type=ref,event=pr
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
-          type=raw,value=main,enable={{is_default_branch}}
+          type=raw,value=release,enable=${{ github.ref == 'refs/heads/release' }}
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
