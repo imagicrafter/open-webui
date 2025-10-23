@@ -3,9 +3,8 @@
 # Environment Variable Management Menu
 # This provides an interactive menu for managing custom environment variables
 
-# Source the helper functions
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-source "${SCRIPT_DIR}/env-manager-functions.sh"
+# Note: This file is meant to be sourced by client-manager.sh
+# env-manager-functions.sh should already be sourced before this file
 
 # ============================================================================
 # MAIN ENV MANAGEMENT MENU
