@@ -119,13 +119,18 @@ else
     echo -e "${GREEN}✅ SSL certificates preserved${NC}"
 fi
 
-# Remove qbmgr user's home directory and repo
-echo -e "${BLUE}[6/8] Removing qbmgr home directory...${NC}"
-if [ -d "/home/qbmgr" ]; then
-    rm -rf /home/qbmgr
-    echo -e "${GREEN}✅ Home directory removed${NC}"
+# Kill any processes owned by qbmgr
+echo -e "${BLUE}[6/8] Killing processes owned by qbmgr...${NC}"
+if id "qbmgr" &>/dev/null; then
+    QBMGR_PROCS=$(ps -u qbmgr -o pid= 2>/dev/null || true)
+    if [ -n "$QBMGR_PROCS" ]; then
+        echo "$QBMGR_PROCS" | xargs kill -9 2>/dev/null || true
+        echo -e "${GREEN}✅ Processes terminated${NC}"
+    else
+        echo "  No processes found"
+    fi
 else
-    echo "  Home directory doesn't exist"
+    echo "  User doesn't exist"
 fi
 
 # Remove qbmgr from sudoers
@@ -137,11 +142,14 @@ else
     echo "  Sudoers file doesn't exist"
 fi
 
-# Delete qbmgr user
-echo -e "${BLUE}[8/8] Removing qbmgr user...${NC}"
+# Delete qbmgr user and home directory atomically, then remove group
+echo -e "${BLUE}[8/8] Removing qbmgr user, home directory, and group...${NC}"
 if id "qbmgr" &>/dev/null; then
-    userdel qbmgr 2>/dev/null || true
-    echo -e "${GREEN}✅ User removed${NC}"
+    # -r flag removes home directory and mail spool atomically
+    userdel -r qbmgr 2>/dev/null || true
+    # Also remove the group if it still exists
+    groupdel qbmgr 2>/dev/null || true
+    echo -e "${GREEN}✅ User, home directory, and group removed${NC}"
 else
     echo "  User doesn't exist"
 fi

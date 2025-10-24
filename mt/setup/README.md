@@ -568,9 +568,84 @@ docker ps
 docker logs -f openwebui-nginx
 ```
 
+## Rebuilding/Resetting a Server
+
+If you need to restore a droplet to a clean state to re-run `quick-setup.sh` without destroying the droplet:
+
+### ⚠️ CRITICAL WARNINGS
+
+- **MUST be run as root** (not as qbmgr user)
+- **DO NOT run as qbmgr** - Script will fail and leave system in broken state
+- **SSH as root first**, then run the cleanup script
+
+### Usage
+
+**1. SSH as root:**
+```bash
+ssh root@YOUR_DROPLET_IP
+```
+
+**2. Run cleanup script:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/cleanup-for-rebuild.sh | sudo bash
+```
+
+Or download and run locally:
+```bash
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/cleanup-for-rebuild.sh -o /tmp/cleanup.sh
+sudo bash /tmp/cleanup.sh
+```
+
+**3. Re-run quick setup:**
+```bash
+# Production server
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "production"
+
+# Test server
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "test"
+```
+
+### What Gets Removed
+
+- All Open WebUI containers (openwebui-*)
+- All Open WebUI Docker volumes (openwebui-*)
+- Docker network (openwebui-network)
+- nginx configuration directory (/opt/openwebui-nginx)
+- qbmgr user, home directory, and group
+- qbmgr sudoers configuration
+
+### What Gets Preserved
+
+- Root SSH access and keys
+- Docker installation
+- System packages (certbot, jq, htop, etc.)
+- SSL certificates in /etc/letsencrypt (optional removal)
+- Network configuration and Cloudflare DNS
+- All other system configuration
+
+### Example Workflow
+
+```bash
+# 1. SSH to server as root
+ssh root@104.236.102.26
+
+# 2. Run cleanup
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/cleanup-for-rebuild.sh | sudo bash
+
+# 3. Optionally remove SSL certificates when prompted (y/N)
+
+# 4. Exit and re-run quick setup
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "test"
+
+# 5. Exit and SSH as qbmgr
+exit
+ssh qbmgr@104.236.102.26
+```
+
 ## Files in This Directory
 
 - **`quick-setup.sh`** - Non-interactive setup script (one command)
+- **`cleanup-for-rebuild.sh`** - Cleanup script to restore droplet to fresh state
 - **`README.md`** - This file (detailed setup documentation)
 - **`../README.md`** - Main multi-tenant guide with Getting Started section
 
