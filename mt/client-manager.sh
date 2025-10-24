@@ -2946,23 +2946,49 @@ generate_nginx_config() {
                             echo
                             echo "✅ SSL certificate obtained successfully!"
                             echo
-                            echo "Updating nginx configuration to use SSL..."
 
-                            # Generate SSL config
-                            sed -e "s/\${CLIENT_NAME}/${client_name}/g" \
-                                -e "s/\${DOMAIN}/${domain}/g" \
-                                -e "s/\${CONTAINER_NAME}/${container_name}/g" \
-                                "${SCRIPT_DIR}/nginx-container/nginx-template-containerized.conf" > "$config_file"
+                            # Check if nginx container has SSL mount
+                            echo "Checking nginx container SSL mount..."
+                            if ! docker inspect openwebui-nginx --format '{{range .Mounts}}{{.Source}}{{end}}' 2>/dev/null | grep -q "/etc/letsencrypt"; then
+                                echo
+                                echo "⚠️  WARNING: nginx container does not have /etc/letsencrypt mounted!"
+                                echo
+                                echo "This happens when nginx was deployed before SSL certificates existed."
+                                echo "The container needs to be redeployed to mount the SSL certificates."
+                                echo
+                                echo "Fix: Restart nginx container to pick up SSL mount"
+                                echo
+                                echo "Run these commands:"
+                                echo "  cd ${SCRIPT_DIR}/nginx-container"
+                                echo "  ./deploy-nginx-container.sh"
+                                echo "  # Choose option 1 to remove and redeploy"
+                                echo
+                                echo "Then come back to this menu and select option 5 again to complete SSL setup."
+                                echo
+                                read -p "Press Enter to continue..."
+                            else
+                                echo "Updating nginx configuration to use SSL..."
 
-                            # Deploy SSL config
-                            if cp "$config_file" "${nginx_config_dest}" 2>/dev/null || sudo cp "$config_file" "${nginx_config_dest}" 2>/dev/null; then
-                                if docker exec openwebui-nginx nginx -t 2>&1 | grep -q "successful"; then
-                                    docker exec openwebui-nginx nginx -s reload
-                                    echo "✅ HTTPS is now enabled for ${domain}"
-                                    echo
-                                    echo "Test: curl -I https://${domain}"
-                                else
-                                    echo "❌ nginx config test failed, check /opt/openwebui-nginx/conf.d/${domain}.conf"
+                                # Generate SSL config
+                                sed -e "s/\${CLIENT_NAME}/${client_name}/g" \
+                                    -e "s/\${DOMAIN}/${domain}/g" \
+                                    -e "s/\${CONTAINER_NAME}/${container_name}/g" \
+                                    "${SCRIPT_DIR}/nginx-container/nginx-template-containerized.conf" > "$config_file"
+
+                                # Deploy SSL config
+                                if cp "$config_file" "${nginx_config_dest}" 2>/dev/null || sudo cp "$config_file" "${nginx_config_dest}" 2>/dev/null; then
+                                    if docker exec openwebui-nginx nginx -t 2>&1 | grep -q "successful"; then
+                                        docker exec openwebui-nginx nginx -s reload
+                                        echo "✅ HTTPS is now enabled for ${domain}"
+                                        echo
+                                        echo "Test: curl -I https://${domain}"
+                                    else
+                                        echo "❌ nginx config test failed, check /opt/openwebui-nginx/conf.d/${domain}.conf"
+                                        echo
+                                        echo "Troubleshooting:"
+                                        echo "  View nginx error: docker exec openwebui-nginx nginx -t"
+                                        echo "  Check config file: cat /opt/openwebui-nginx/conf.d/${domain}.conf"
+                                    fi
                                 fi
                             fi
                         else
