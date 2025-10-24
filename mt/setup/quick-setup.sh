@@ -1,12 +1,16 @@
 #!/bin/bash
 # Quick Setup for Open WebUI Deployment
-# Run this as root on a fresh Digital Ocean droplet - NO PROMPTS, JUST WORKS
+# Run this as root on a fresh Digital Ocean droplet
 #
 # Usage Option 1 (auto-copy SSH key from root):
 #   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash
 #
 # Usage Option 2 (provide SSH key):
 #   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY"
+#
+# Usage Option 3 (provide SSH key + server type):
+#   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY" "production"
+#   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY" "test"
 
 set -euo pipefail
 
@@ -15,15 +19,17 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 # Configuration
 DEPLOY_USER="qbmgr"
 REPO_URL="https://github.com/imagicrafter/open-webui.git"
 SSH_KEY="${1:-}"
+SERVER_TYPE="${2:-}"
 
 echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     Open WebUI Quick Setup (Non-Interactive)              ║${NC}"
+echo -e "${BLUE}║     Open WebUI Quick Setup                                 ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
 echo
 
@@ -35,6 +41,52 @@ if [ "$EUID" -ne 0 ]; then
     echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash"
     exit 1
 fi
+
+# Prompt for server type if not provided
+if [ -z "$SERVER_TYPE" ]; then
+    echo -e "${CYAN}Select server type:${NC}"
+    echo -e "  ${GREEN}1${NC}) Test Server (uses 'main' branch - latest development code)"
+    echo -e "  ${BLUE}2${NC}) Production Server (uses 'release' branch - stable tested code)"
+    echo
+    read -p "Enter choice [1 or 2]: " choice
+    echo
+
+    case $choice in
+        1)
+            SERVER_TYPE="test"
+            ;;
+        2)
+            SERVER_TYPE="production"
+            ;;
+        *)
+            echo -e "${RED}❌ Invalid choice. Please enter 1 or 2${NC}"
+            exit 1
+            ;;
+    esac
+fi
+
+# Set branch based on server type
+case "$SERVER_TYPE" in
+    test|TEST|t|T)
+        GIT_BRANCH="main"
+        SERVER_TYPE_DISPLAY="Test"
+        BRANCH_DISPLAY="main (development)"
+        ;;
+    production|PRODUCTION|prod|PROD|p|P)
+        GIT_BRANCH="release"
+        SERVER_TYPE_DISPLAY="Production"
+        BRANCH_DISPLAY="release (stable)"
+        ;;
+    *)
+        echo -e "${RED}❌ Invalid server type: $SERVER_TYPE${NC}"
+        echo "Valid options: test, production"
+        exit 1
+        ;;
+esac
+
+echo -e "${GREEN}✅ Server Type: ${SERVER_TYPE_DISPLAY}${NC}"
+echo -e "${GREEN}✅ Git Branch: ${BRANCH_DISPLAY}${NC}"
+echo
 
 # Determine SSH key source
 if [ -z "$SSH_KEY" ]; then
@@ -123,13 +175,14 @@ chmod 644 "/home/$DEPLOY_USER/.bash_profile"
 echo -e "${GREEN}✅ Auto-start configured${NC}"
 
 # Step 5: Clone Open WebUI repository
-echo -e "${BLUE}[5/8] Cloning repository...${NC}"
+echo -e "${BLUE}[5/8] Cloning repository (branch: ${GIT_BRANCH})...${NC}"
 REPO_PATH="/home/$DEPLOY_USER/open-webui"
 if [ -d "$REPO_PATH" ]; then
-    echo -e "${YELLOW}Repository exists, pulling latest...${NC}"
-    sudo -u "$DEPLOY_USER" git -C "$REPO_PATH" pull || true
+    echo -e "${YELLOW}Repository exists, checking out ${GIT_BRANCH} and pulling latest...${NC}"
+    sudo -u "$DEPLOY_USER" git -C "$REPO_PATH" checkout "$GIT_BRANCH" || true
+    sudo -u "$DEPLOY_USER" git -C "$REPO_PATH" pull origin "$GIT_BRANCH" || true
 else
-    sudo -u "$DEPLOY_USER" git clone "$REPO_URL" "$REPO_PATH"
+    sudo -u "$DEPLOY_USER" git clone -b "$GIT_BRANCH" "$REPO_URL" "$REPO_PATH"
 fi
 
 # Make scripts executable
@@ -137,7 +190,7 @@ chmod +x "$REPO_PATH/mt/client-manager.sh"
 chmod +x "$REPO_PATH/mt/nginx-container/deploy-nginx-container.sh"
 chmod +x "$REPO_PATH/mt/setup"/*.sh 2>/dev/null || true
 
-echo -e "${GREEN}✅ Repository ready at $REPO_PATH${NC}"
+echo -e "${GREEN}✅ Repository ready at $REPO_PATH (branch: ${GIT_BRANCH})${NC}"
 
 # Step 6: Create directories
 echo -e "${BLUE}[6/8] Creating directories...${NC}"
@@ -153,14 +206,16 @@ echo -e "${GREEN}✅ Packages installed${NC}"
 
 # Step 8: Create welcome message
 echo -e "${BLUE}[8/8] Creating welcome message...${NC}"
-cat > "/home/$DEPLOY_USER/WELCOME.txt" << 'EOF'
+cat > "/home/$DEPLOY_USER/WELCOME.txt" << EOF
 ╔════════════════════════════════════════════════════════════╗
 ║          Open WebUI Deployment Server Ready                ║
 ╚════════════════════════════════════════════════════════════╝
 
 ✅ Quick setup completed successfully!
 
-Your server is configured with:
+Server Configuration:
+  - Server Type: ${SERVER_TYPE_DISPLAY}
+  - Git Branch: ${GIT_BRANCH}
   - User: qbmgr (sudo + docker access)
   - Repository: ~/open-webui
   - nginx directory: /opt/openwebui-nginx
@@ -202,6 +257,8 @@ echo -e "${GREEN}🎉 Setup Complete!${NC}"
 echo -e "${BLUE}═══════════════════════════════════════════════════════════${NC}"
 echo
 echo "Configuration:"
+echo -e "  ${GREEN}✅${NC} Server Type: ${SERVER_TYPE_DISPLAY}"
+echo -e "  ${GREEN}✅${NC} Git Branch: ${GIT_BRANCH}"
 echo -e "  ${GREEN}✅${NC} User: qbmgr"
 echo -e "  ${GREEN}✅${NC} Groups: sudo, docker"
 echo -e "  ${GREEN}✅${NC} Repository: /home/qbmgr/open-webui"

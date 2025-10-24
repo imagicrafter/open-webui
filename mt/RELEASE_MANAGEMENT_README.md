@@ -529,6 +529,61 @@ cd ~/open-webui && git pull origin main
 # 4. When ready, promote to release
 ```
 
+### Scenario: Deploying New Server with quick-setup.sh
+
+**Problem:** Need to deploy a new test or production server
+
+**Solution:**
+
+**Interactive Mode (Recommended):**
+```bash
+# Run quick-setup.sh and select server type when prompted
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash
+
+# You'll be prompted:
+# Select server type:
+#   1) Test Server (uses 'main' branch - latest development code)
+#   2) Production Server (uses 'release' branch - stable tested code)
+# Enter choice [1 or 2]:
+```
+
+**Non-Interactive Mode (Automated):**
+```bash
+# Test server (main branch)
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_KEY" "test"
+
+# Production server (release branch)
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_KEY" "production"
+```
+
+**What Happens:**
+- **Test Server (main branch):**
+  - Gets latest development code
+  - Uses pinned digest from main scripts
+  - Perfect for testing new features
+  - Can be updated frequently: `git pull origin main`
+
+- **Production Server (release branch):**
+  - Gets stable, tested code
+  - Uses pinned digest from release scripts
+  - Production-ready deployments
+  - Only updated when release branch is updated
+
+**After Setup:**
+```bash
+# SSH as qbmgr (client-manager auto-starts)
+ssh qbmgr@server-ip
+
+# View server configuration
+cat ~/WELCOME.txt
+# Shows: Server Type and Git Branch
+
+# Verify branch
+cd ~/open-webui
+git branch
+# Should show: main (test) or release (production)
+```
+
 ### Scenario: Syncing with Upstream Open WebUI
 
 **Problem:** Need to merge updates from upstream open-webui/open-webui
