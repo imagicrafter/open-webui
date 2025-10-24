@@ -29,6 +29,19 @@ For production deployments, **always use a dedicated user** with appropriate per
 
 This is the simplest and most reliable method. Just login as root and run a single command.
 
+### Server Types
+
+The setup script supports two server types:
+
+| Server Type | Branch | Purpose | Use Case |
+|-------------|--------|---------|----------|
+| **Test** | `main` | Latest development code | Testing new features, development, validation |
+| **Production** | `release` | Stable tested code | Client deployments, production use |
+
+**Which should you choose?**
+- 🧪 **Test**: For development and testing servers where you want the latest changes
+- 🚀 **Production**: For client-facing servers that require stability (RECOMMENDED for production)
+
 ### Steps
 
 1. **Get your SSH public key** on your local machine:
@@ -50,18 +63,44 @@ This is the simplest and most reliable method. Just login as root and run a sing
 
 3. **SSH as root and run setup**
 
+   **Option A: Interactive Mode (Prompts for server type)**
+
    ```bash
    ssh root@YOUR_DROPLET_IP
 
-   # Run the setup script with your SSH key
-   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY"
+   # Download and run interactively
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh -o /tmp/setup.sh
+   bash /tmp/setup.sh
    ```
 
-   Replace `YOUR_SSH_PUBLIC_KEY` with your actual public key from step 1.
+   The script will prompt you to select:
+   - **1) Test Server** - Uses `main` branch (latest development code)
+   - **2) Production Server** - Uses `release` branch (stable tested code)
 
-   **Example:**
+   **Option B: Non-Interactive Mode (Specify server type)**
+
    ```bash
-   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host"
+   ssh root@YOUR_DROPLET_IP
+
+   # For TEST server (main branch)
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY" "test"
+
+   # For PRODUCTION server (release branch) - RECOMMENDED
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY" "production"
+   ```
+
+   Replace `YOUR_SSH_PUBLIC_KEY` with your actual public key from step 1, or use `""` to auto-copy from root.
+
+   **Examples:**
+   ```bash
+   # Test server with SSH key
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host" "test"
+
+   # Production server with SSH key
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host" "production"
+
+   # Production server (auto-copy SSH key from root)
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "production"
    ```
 
 4. **Exit and SSH as qbmgr**
@@ -86,8 +125,11 @@ The script automatically:
 - ✅ Configures passwordless sudo for convenience
 - ✅ Adds your SSH key for authentication
 - ✅ Clones the Open WebUI repository to `/home/qbmgr/open-webui`
+  - **Test servers**: Clones `main` branch (latest development code)
+  - **Production servers**: Clones `release` branch (stable tested code)
 - ✅ Creates `/opt/openwebui-nginx` directory
 - ✅ Installs useful packages (certbot, jq, htop, tree, net-tools)
+- ✅ Configures auto-start of client-manager on SSH login
 - ✅ Tests Docker access
 
 ### User Configuration
