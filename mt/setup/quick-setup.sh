@@ -44,25 +44,45 @@ fi
 
 # Prompt for server type if not provided
 if [ -z "$SERVER_TYPE" ]; then
-    echo -e "${CYAN}Select server type:${NC}"
-    echo -e "  ${GREEN}1${NC}) Test Server (uses 'main' branch - latest development code)"
-    echo -e "  ${BLUE}2${NC}) Production Server (uses 'release' branch - stable tested code)"
-    echo
-    read -p "Enter choice [1 or 2]: " choice
-    echo
+    # Check if running interactively (not via curl|bash)
+    if [ -t 0 ]; then
+        # Interactive mode - can prompt user
+        echo -e "${CYAN}Select server type:${NC}"
+        echo -e "  ${GREEN}1${NC}) Test Server (uses 'main' branch - latest development code)"
+        echo -e "  ${BLUE}2${NC}) Production Server (uses 'release' branch - stable tested code)"
+        echo
+        read -p "Enter choice [1 or 2]: " choice
+        echo
 
-    case $choice in
-        1)
-            SERVER_TYPE="test"
-            ;;
-        2)
-            SERVER_TYPE="production"
-            ;;
-        *)
-            echo -e "${RED}❌ Invalid choice. Please enter 1 or 2${NC}"
-            exit 1
-            ;;
-    esac
+        case $choice in
+            1)
+                SERVER_TYPE="test"
+                ;;
+            2)
+                SERVER_TYPE="production"
+                ;;
+            *)
+                echo -e "${RED}❌ Invalid choice. Please enter 1 or 2${NC}"
+                exit 1
+                ;;
+        esac
+    else
+        # Non-interactive mode (curl|bash) - require parameter
+        echo -e "${RED}❌ Server type must be specified when running via curl${NC}"
+        echo
+        echo "Usage:"
+        echo -e "  ${GREEN}Test server:${NC}"
+        echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- \"\" \"test\""
+        echo
+        echo -e "  ${BLUE}Production server:${NC}"
+        echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- \"\" \"production\""
+        echo
+        echo -e "  ${YELLOW}Or SSH to server first and run interactively:${NC}"
+        echo "  ssh root@server-ip"
+        echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh -o /tmp/setup.sh"
+        echo "  bash /tmp/setup.sh"
+        exit 1
+    fi
 fi
 
 # Set branch based on server type
