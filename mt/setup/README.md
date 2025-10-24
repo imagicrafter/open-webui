@@ -63,44 +63,53 @@ The setup script supports two server types:
 
 3. **SSH as root and run setup**
 
-   **Option A: Interactive Mode (Prompts for server type)**
+   **RECOMMENDED: One-Line Setup (Most Common)**
+
+   ```bash
+   # Production server (stable, recommended for clients)
+   ssh root@YOUR_DROPLET_IP
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "production"
+   ```
+
+   ```bash
+   # Test server (latest development code)
+   ssh root@YOUR_DROPLET_IP
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "test"
+   ```
+
+   **What the parameters mean:**
+   - `""` = Auto-copy SSH key from root's authorized_keys
+   - `"production"` or `"test"` = Server type (REQUIRED)
+
+   ---
+
+   **Alternative: Interactive Mode (If you prefer to be prompted)**
 
    ```bash
    ssh root@YOUR_DROPLET_IP
-
-   # Download and run interactively
    curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh -o /tmp/setup.sh
    bash /tmp/setup.sh
    ```
 
-   The script will prompt you to select:
+   ⚠️ **Note:** You MUST download the script first (`-o /tmp/setup.sh`) for interactive mode to work. The `curl | bash` pattern does NOT support interactive prompts.
+
+   The script will then prompt you to select:
    - **1) Test Server** - Uses `main` branch (latest development code)
    - **2) Production Server** - Uses `release` branch (stable tested code)
 
-   **Option B: Non-Interactive Mode (Specify server type)**
+   ---
+
+   **Advanced: Specify Your Own SSH Key**
 
    ```bash
+   # If you want to use a different SSH key than what's on root
    ssh root@YOUR_DROPLET_IP
 
-   # For TEST server (main branch)
-   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY" "test"
-
-   # For PRODUCTION server (release branch) - RECOMMENDED
-   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY" "production"
-   ```
-
-   Replace `YOUR_SSH_PUBLIC_KEY` with your actual public key from step 1, or use `""` to auto-copy from root.
-
-   **Examples:**
-   ```bash
-   # Test server with SSH key
-   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host" "test"
-
-   # Production server with SSH key
+   # Production server with custom SSH key
    curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host" "production"
 
-   # Production server (auto-copy SSH key from root)
-   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "production"
+   # Test server with custom SSH key
+   curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQ... user@host" "test"
    ```
 
 4. **Exit and SSH as qbmgr**
