@@ -1905,6 +1905,9 @@ manage_single_deployment() {
                     # Extract FQDN from redirect URI
                     local new_fqdn=$(echo "$redirect_uri" | sed -E 's|https?://||' | sed 's|/oauth/google/callback||')
 
+                    # Calculate BASE_URL from redirect URI
+                    local base_url=$(echo "$redirect_uri" | sed 's|/oauth/google/callback||')
+
                     docker run -d \
                         --name "$container_name" \
                         -p "${port}:8080" \
@@ -1915,6 +1918,7 @@ manage_single_deployment() {
                         -e OAUTH_ALLOWED_DOMAINS="$new_domains" \
                         -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                         -e WEBUI_NAME="$webui_name" \
+                        -e WEBUI_BASE_URL="$base_url" \
                         -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                         -e FQDN="$new_fqdn" \
                         -e CLIENT_NAME="$client_name" \
@@ -2058,6 +2062,10 @@ manage_single_deployment() {
 
                     # Create new container with new name and domain
                     echo "Creating new container: $new_container_name"
+
+                    # Calculate BASE_URL from redirect URI
+                    local new_base_url=$(echo "$new_redirect_uri" | sed 's|/oauth/google/callback||')
+
                     docker run -d \
                         --name "$new_container_name" \
                         -p "${current_port}:8080" \
@@ -2068,6 +2076,7 @@ manage_single_deployment() {
                         -e OAUTH_ALLOWED_DOMAINS="$current_allowed_domains" \
                         -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                         -e WEBUI_NAME="$new_webui_name" \
+                        -e WEBUI_BASE_URL="$new_base_url" \
                         -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                         -e FQDN="$new_fqdn" \
                         -e CLIENT_NAME="$new_client_name" \
@@ -2419,6 +2428,45 @@ install_nginx_host() {
         fi
     else
         echo "✅ certbot already installed"
+    fi
+
+    # Configure firewall for nginx
+    echo
+    echo "🔥 Configuring firewall for nginx..."
+    if command -v ufw &> /dev/null; then
+        # Check if ufw is active
+        if sudo ufw status | grep -q "Status: active"; then
+            # Try 'Nginx Full' profile first, fallback to direct port rules
+            if sudo ufw allow 'Nginx Full' 2>/dev/null; then
+                # Verify the rule was added
+                if sudo ufw status | grep -qiE "(Nginx Full|80.*ALLOW|443.*ALLOW)"; then
+                    echo "✅ Firewall configured to allow HTTP (80) and HTTPS (443)"
+                else
+                    echo "⚠️  'Nginx Full' command succeeded but rules not visible"
+                    echo "   Trying direct port configuration..."
+                    sudo ufw allow 80/tcp
+                    sudo ufw allow 443/tcp
+                    echo "✅ Firewall configured with direct port rules"
+                fi
+            else
+                echo "ℹ️  'Nginx Full' profile not available, using direct port rules..."
+                sudo ufw allow 80/tcp
+                sudo ufw allow 443/tcp
+                if sudo ufw status | grep -qE "(80/tcp.*ALLOW|443/tcp.*ALLOW)"; then
+                    echo "✅ Firewall configured to allow HTTP (80) and HTTPS (443)"
+                else
+                    echo "❌ Failed to configure firewall rules"
+                    echo "   Please run manually: sudo ufw allow 80/tcp && sudo ufw allow 443/tcp"
+                fi
+            fi
+        else
+            echo "⚠️  UFW firewall is installed but not active"
+            echo "   To enable: sudo ufw enable"
+            echo "   Then run: sudo ufw allow 80/tcp && sudo ufw allow 443/tcp"
+        fi
+    else
+        echo "⚠️  UFW firewall not installed (nginx will still work)"
+        echo "   Install with: sudo apt-get install -y ufw"
     fi
 
     # Enable and start nginx

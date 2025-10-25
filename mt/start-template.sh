@@ -22,9 +22,11 @@ VOLUME_NAME="${CONTAINER_NAME}-data"
 # Set redirect URI and environment based on domain type
 if [[ "$DOMAIN" == localhost* ]] || [[ "$DOMAIN" == 127.0.0.1* ]]; then
     REDIRECT_URI="http://${DOMAIN}/oauth/google/callback"
+    BASE_URL="http://${DOMAIN}"
     ENVIRONMENT="development"
 else
     REDIRECT_URI="https://${DOMAIN}/oauth/google/callback"
+    BASE_URL="https://${DOMAIN}"
     ENVIRONMENT="production"
 fi
 
@@ -52,14 +54,10 @@ docker_cmd="docker run -d \
     -e OAUTH_ALLOWED_DOMAINS=martins.net \
     -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
     -e WEBUI_NAME=\"QuantaBase - ${CLIENT_NAME}\" \
+    -e WEBUI_BASE_URL=${BASE_URL} \
     -e USER_PERMISSIONS_CHAT_CONTROLS=false \
     -e FQDN=\"${FQDN}\" \
     -e CLIENT_NAME=\"${CLIENT_NAME}\""
-
-# Add BASE_URL if set (for nginx proxy mode)
-if [[ -n "$BASE_URL" ]]; then
-    docker_cmd="$docker_cmd -e WEBUI_BASE_URL=${BASE_URL}"
-fi
 
 docker_cmd="$docker_cmd \
     -v ${VOLUME_NAME}:/app/backend/data \
