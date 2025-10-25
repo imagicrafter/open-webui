@@ -1,8 +1,79 @@
 # Issue: Function Pipe Save Failure with Containerized nginx
 
-## Status: UNRESOLVED
+## Status: ROOT CAUSE IDENTIFIED
 
-**Last Updated:** 2025-10-24
+**Last Updated:** 2025-10-24 19:30 CDT
+
+## ROOT CAUSE ANALYSIS
+
+### Key Finding: Docker Image Difference
+
+**Working Server (45.55.59.141 - Built Oct 17, 2025)**:
+```bash
+Docker Image: ghcr.io/imagicrafter/open-webui:main (unpinned :main tag)
+Code Base: Commit b5c267446 or nearby (Oct 17-18)
+Status: Function pipes SAVE SUCCESSFULLY
+```
+
+**Current Main Branch (Broken)**:
+```bash
+Docker Image: ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c... (pinned Sept 28)
+Code Base: Current HEAD with pinned image
+Status: Function pipes FAIL TO SAVE
+```
+
+### Timeline of Events
+
+1. **Oct 17-18**: Working deployment created
+   - Used `:main` Docker tag (unpinned)
+   - Containerized nginx working
+   - Function pipes save successfully
+
+2. **Oct 22** (commit 351ebba70): VAULT integration added
+   - Added env management system
+   - Modified start-template.sh and client-manager.sh
+
+3. **Oct 23**: Pipe save errors discovered on NEW deployments
+   - Error: "Invalid HTTP request received"
+   - JSON parsing failures in browser
+
+4. **Oct 23** (commit db9e84799): First fix attempt
+   - Disabled WEBUI_SECRET_KEY generation
+   - Did not resolve issue
+
+5. **Oct 23** (commit 68968fe72): VAULT rollback
+   - Complete rollback of VAULT integration
+   - Reverted to pre-VAULT code state
+   - Issue persisted
+
+6. **Oct 23** (commit caffec801): Docker image pinning
+   - Pinned to Sept 28 version (sha256:bdf98b7bf21c...)
+   - Commit message claimed this was "ACTUAL root cause"
+   - **BUT**: Working server uses UNPINNED :main tag
+
+### The Paradox
+
+The Oct 23 fix attempts assumed:
+- Unpinned `:main` tag was the problem
+- Pinning to Sept 28 was the solution
+
+**Reality** (comparing to working 45.55.59.141):
+- Working server uses UNPINNED `:main` tag
+- Pinned image is the DIFFERENCE, not the solution
+
+### Proposed Solution
+
+Revert Docker image back to unpinned `:main` tag to match working server configuration:
+
+```bash
+# Change from:
+ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27
+
+# Back to:
+ghcr.io/imagicrafter/open-webui:main
+```
+
+This matches the ONLY code difference between working Oct 17 deployment and current main branch.
 
 ## Problem Summary
 
@@ -76,10 +147,10 @@ Invalid HTTP request received.
 - **Conclusion**: Not a static nginx config issue
 
 ### 6. Container Restarts
--   Restarted Open WebUI container
+- ï¿½ Restarted Open WebUI container
   - Error changed from HTTP 400 to HTTP 422
   - Issue persists
--   Restarted nginx container
+- ï¿½ Restarted nginx container
   - No change in behavior
 - **Conclusion**: Restart changes error but doesn't fix issue
 
@@ -94,8 +165,8 @@ Invalid HTTP request received.
 - **Conclusion**: Issue is environmental/runtime, not code-based
 
 ### 9. Pattern Recognition
-- =¨ **Critical Finding**: After multiple tests, discovered that even NEW clients deployed on previously working servers cannot save function pipes
-- =¨ **Pattern**: All failures involve containerized nginx
+- =ï¿½ **Critical Finding**: After multiple tests, discovered that even NEW clients deployed on previously working servers cannot save function pipes
+- =ï¿½ **Pattern**: All failures involve containerized nginx
 - **Hypothesis**: Issue is related to nginx running in Docker container
 
 ## Current Hypothesis
@@ -160,11 +231,11 @@ server {
 ### Deployment Architecture
 ```
 Browser (HTTPS/HTTP2)
-    “
+    ï¿½
 nginx Docker Container (port 443)
-    “ (HTTP/1.1 proxy)
+    ï¿½ (HTTP/1.1 proxy)
 Open WebUI Docker Container (port 8080)
-    “
+    ï¿½
 uvicorn (FastAPI backend)
 ```
 
