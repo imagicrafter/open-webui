@@ -21,12 +21,14 @@ OAUTH_DOMAINS="${6:-martins.net}"  # Default to martins.net if not provided
 WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Generate if not provided
 VOLUME_NAME="${CONTAINER_NAME}-data"
 
-# Set redirect URI and environment based on domain type
+# Set redirect URI, base URL, and environment based on domain type
 if [[ "$DOMAIN" == localhost* ]] || [[ "$DOMAIN" == 127.0.0.1* ]]; then
     REDIRECT_URI="http://${DOMAIN}/oauth/google/callback"
+    BASE_URL="http://${DOMAIN}"
     ENVIRONMENT="development"
 else
     REDIRECT_URI="https://${DOMAIN}/oauth/google/callback"
+    BASE_URL="https://${DOMAIN}"
     ENVIRONMENT="production"
 fi
 

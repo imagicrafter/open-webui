@@ -1,120 +1,98 @@
 # Multi-Tenant Open WebUI
 
-This directory contains scripts for running multiple isolated Open WebUI instances for different clients.
+## Overview
 
-## System Requirements
+This directory contains a complete **multi-tenant deployment system** for [Open WebUI](https://github.com/open-webui/open-webui) - an extensible, self-hosted AI chat interface supporting multiple LLM providers (Ollama, OpenAI, Anthropic, and more).
 
-> **Note**: This section is continuously updated based on production observations. Memory requirements may vary based on workload, number of concurrent users, and model configurations.
+### Purpose
 
-### Minimum Hardware Requirements
+The **mt/** (multi-tenant) system extends the Open WebUI fork with production-ready infrastructure for deploying and managing **multiple isolated Open WebUI instances** on a single server or across multiple hosts. This enables SaaS-style deployments, client-specific installations, and high-availability configurations.
 
-Based on observed metrics in production environments:
+### Key Features
 
-| Component | Minimum RAM | Notes |
-|-----------|-------------|-------|
-| **nginx Container** | 460 MB | With 2 client deployments configured |
-| **Open WebUI Instance** | 600 MB per instance | Per client deployment |
-| **Operating System** | 200-300 MB | Ubuntu baseline |
-| **System Overhead** | 100-200 MB | Docker, system processes |
+**🔐 Complete Isolation**
+- Each client gets their own Docker container with dedicated resources
+- Isolated data volumes (separate chat history, settings, user databases)
+- Custom domains and branding per deployment
+- dedicated SQLite database in the Open WebUI container
+- Sync capabable with a dedicated schema on PostgreSQL/Supabase cloud
 
-### Recommended Droplet Sizes
+**🚀 Production-Ready Infrastructure**
+- **Dual nginx Modes**: HOST nginx (systemd service, production-ready) + Containerized nginx (experimental)
+- **Automated SSL**: Let's Encrypt certificate generation with staging and production options
+- **OAuth Integration**: Google OAuth with domain restrictions, ready out-of-the-box
+- **Client Manager**: Interactive menu-driven management tool for infrastructure deployment and maintenance operations
+- **Quick Setup**: Single-command server provisioning with automated configuration
 
-**For 1-2 Client Deployments:**
-- **Droplet Size**: 2GB RAM / 1 vCPU / 50GB SSD
-- **Monthly Cost**: $12
-- **Memory Breakdown**:
-  - nginx: 460 MB
-  - 2 Open WebUI instances: 1,200 MB (600 MB × 2)
-  - System overhead: ~340 MB
-  - **Total**: ~2 GB
+**📊 Database Flexibility**
+- **SQLite**: Default local database for simple deployments
+- **PostgreSQL/Supabase**: Sync capable with Cloud-hosted databases for backups and future potential for scalability and multi-instance sharing
+- **One-Click Migration**: Built-in SQLite → PostgreSQL migration with automatic backups and rollback
+- **Configuration Viewer**: Inspect database settings for any deployment
 
-**For 3-4 Client Deployments:**
-- **Droplet Size**: 4GB RAM / 2 vCPU / 80GB SSD
-- **Monthly Cost**: $24
-- **Memory Breakdown**:
-  - nginx: 460 MB
-  - 4 Open WebUI instances: 2,400 MB (600 MB × 4)
-  - System overhead: ~400 MB
-  - **Total**: ~3.3 GB
+**⚡ High Availability & Sync (NEW)**
+- **Dual-Node Sync System**: Primary/secondary containers with automatic leader election
+- **SQLite + Supabase Sync**: One-way synchronization (Phase 1) with bidirectional support planned
+- **Conflict Resolution**: 5 configurable strategies for handling data conflicts
+- **Automatic Failover**: <35 seconds failover time with Prometheus monitoring
+- **IPv6 Auto-Configuration**: Optimal Supabase connectivity on Digital Ocean
 
-**For 5-8 Client Deployments:**
-- **Droplet Size**: 8GB RAM / 4 vCPU / 160GB SSD
-- **Monthly Cost**: $48
-- **Memory Breakdown**:
-  - nginx: 460 MB
-  - 8 Open WebUI instances: 4,800 MB (600 MB × 8)
-  - System overhead: ~500 MB
-  - **Total**: ~5.8 GB
+**🔧 Developer-Friendly**
+- **Interactive CLI**: client-manager.sh provides menu-driven interface for all operations
+- **Template Scripts**: Quickly spin up new clients with pre-configured settings
+- **Automated Testing**: Comprehensive test suite for security, failover, and integration validation
+- **Documentation**: Extensive guides for setup, migration, troubleshooting, and monitoring
 
-### Storage Requirements
+### What This Fork Adds to Open WebUI
 
-- **Base Installation**: ~5 GB (Docker images, system packages)
-- **Per Client Instance**: 1-5 GB (varies with conversation history, uploaded files)
-- **SSL Certificates**: <100 MB
-- **nginx Logs**: 100 MB - 1 GB (depending on traffic and log retention)
-- **Backups**: Plan for 2x data size if storing backups locally
+This fork maintains **full compatibility** with upstream Open WebUI while adding:
 
-**Recommended Storage Allocation:**
-- 1-2 clients: 50 GB SSD
-- 3-4 clients: 80 GB SSD
-- 5-8 clients: 160 GB SSD
-- 9+ clients: 320 GB SSD or add block storage
+1. **mt/** Directory Structure:
+   - `client-manager.sh` - Central management tool for all deployments
+   - `start-template.sh` - Parameterized client deployment script
+   - `DB_MIGRATION/` - Complete SQLite → PostgreSQL migration system
+   - `SYNC/` - High-availability sync system with leader election
+   - `nginx-container/` - Containerized nginx deployment with automated SSL
+   - `setup/` - Quick server provisioning and configuration
+   - `tests/` - Testing and certification suite
 
-### CPU Requirements
+2. **Custom Branding Support**:
+   - QuantaBase branding in `assets/logos/`
+   - Custom favicon and logos throughout the interface
+   - Configurable WEBUI_NAME per deployment
 
-- **Minimum**: 1 vCPU (suitable for light usage, 1-2 clients)
-- **Recommended**: 2 vCPUs (smooth performance, 3-4 clients)
-- **High Performance**: 4+ vCPUs (8+ clients or high concurrent usage)
+3. **Enhanced OAuth**:
+   - Pre-configured Google OAuth integration
+   - Domain-based access restrictions
+   - Automated redirect URI management
 
-### Network Requirements
+4. **Production Deployment Automation**:
+   - Digital Ocean optimized quick-setup
+   - Automated user provisioning (qbmgr)
+   - Security-hardened configurations
+   - Automated client-manager launch on login
 
-- **Bandwidth**: 1-5 TB/month depending on usage
-- **IPv6**: **Required** if using Supabase sync functionality
-- **Ports**: 22 (SSH), 80 (HTTP), 443 (HTTPS)
+### Use Cases
 
-### Additional Considerations
+**💼 SaaS Providers**
+- Deploy isolated instances for multiple customers on shared infrastructure
+- Automated provisioning and management
+- Database migration paths for scaling
 
-**Memory Scaling Factors:**
-- Memory usage increases with:
-  - Number of concurrent active users
-  - Size of LLM models being served (if using local models)
-  - Conversation history length
-  - Number of uploaded documents
-  - RAG (Retrieval-Augmented Generation) workloads
+**🏢 Enterprise Deployments**
+- Department-specific instances with separate data
+- High-availability configurations with failover
+- Centralized monitoring and management
 
-**Production Recommendations:**
-- Add 20-30% memory headroom for peaks
-- Enable Digital Ocean monitoring to track actual usage
-- Set up alerts for memory > 80% utilization
-- Consider vertical scaling (upgrade droplet) vs horizontal (multiple servers)
+**🧪 Development & Testing**
+- Quickly spin up test environments
+- Database migration testing with staging certificates
+- Multi-instance testing with shared databases
 
-### Monitoring Current Usage
-
-Check current memory usage on your droplet:
-
-```bash
-# View overall memory usage
-free -h
-
-# View memory usage per container
-docker stats --no-stream
-
-# View memory usage for specific container
-docker stats openwebui-nginx --no-stream
-docker stats openwebui-CLIENT-NAME --no-stream
-```
-
-**Monitor in client-manager:**
-- Option 1: View Deployment Status (shows container resource usage)
-
-### Update History
-
-| Date | Component | Previous | New | Notes |
-|------|-----------|----------|-----|-------|
-| 2025-01-18 | nginx | - | 460 MB | Observed with 2 client deployments |
-| 2025-01-18 | Open WebUI | - | 600 MB | Per instance baseline |
-
-> **Contributing**: If you observe different memory requirements in your environment, please report them so we can refine these recommendations.
+**🌐 Agency Deployments**
+- Client-branded instances with custom domains
+- Separate databases per client for data isolation
+- Managed hosting with automated backups
 
 ## Getting Started
 
@@ -129,11 +107,11 @@ docker stats openwebui-CLIENT-NAME --no-stream
 
 4. **Choose Size** - Select based on number of client deployments:
    - **Droplet Type**: Regular SSD
-   - **1-2 clients**: 2GB RAM / 1 vCPU / 50GB SSD
-   - **3-4 clients**: 4GB RAM / 2 vCPUs / 80GB SSD
-   - **5-8 clients**: 8GB RAM / 4 vCPUs / 160GB SSD
+   - **1-2 clients**: 2GB RAM / 1 vCPU / 50GB SSD ($12/month)
+   - **3-4 clients**: 4GB RAM / 2 vCPUs / 80GB SSD ($24/month)
+   - **5-8 clients**: 8GB RAM / 4 vCPUs / 160GB SSD ($48/month)
 
-   > 📝 See **System Requirements** section above for detailed memory calculations and scaling guidelines.
+   > 📝 See **System Requirements** section at the end for detailed memory calculations and scaling guidelines.
 
 5. **Add SSH Key** (Recommended)
    - Click "New SSH Key" and paste your public key
@@ -155,26 +133,15 @@ SSH to your droplet as root and run the setup command:
 
 **Option 1: Auto-copy SSH key from root** (if you added SSH key during droplet creation)
 ```bash
-curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "production"
 ```
 
 **Option 2: Provide SSH key manually**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "YOUR_SSH_PUBLIC_KEY_HERE"
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "" "test"
 ```
 
-Example with actual key:
-```bash
-curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDl77XDmQLq... user@hostname"
-```
-
-The setup script will:
-- ✅ Create `qbmgr` user with sudo and docker access
-- ✅ Configure SSH key authentication
-- ✅ Clone Open WebUI repository
-- ✅ Install required packages (certbot, jq, htop, tree)
-- ✅ Set up auto-start of client-manager on login
-- ✅ Configure nginx directories
+The quick-setup script automates server provisioning, user creation, security configuration, and deployment setup. For complete details on what gets installed, security hardening steps, and troubleshooting, see **[mt/setup/README.md](setup/README.md)**.
 
 ### Step 3: Login as qbmgr
 
@@ -190,9 +157,9 @@ The **client-manager will start automatically** and show the main menu.
 ### Step 4: Deploy nginx and Create Clients
 
 From the client-manager menu:
-1. **Option 2**: Deploy nginx Container
+1. **Option 6**: Manage nginx Installation → Install nginx on HOST
 2. **Option 3**: Create New Deployment
-3. **Option 2**: Manage nginx Container → Generate nginx Configuration
+3. **Option 5**: Generate nginx Configuration (automated config + SSL setup)
 4. Follow the SSL setup wizard
 
 That's it! Your multi-tenant Open WebUI is now running.
@@ -264,17 +231,7 @@ cd ~/open-webui/mt
 
 ---
 
-## Overview
-
-Each client gets their own:
-- 🔒 **Isolated container** with unique name
-- 💾 **Dedicated data volume** (separate chat history, settings, etc.)
-- 🌐 **Custom domain** and port
-- 🏷️ **Branded interface** with client name
-- 🔐 **Same OAuth configuration** (martins.net domain restriction)
-- 🗄️ **Database choice** (SQLite local or PostgreSQL/Supabase cloud)
-
-### Database Migration Feature
+## Database Migration Feature
 
 The client manager includes built-in database migration capabilities:
 - **Automatic detection** of current database type (SQLite or PostgreSQL)
@@ -293,7 +250,7 @@ The DB_MIGRATION folder contains comprehensive documentation covering:
 - Troubleshooting guide
 - Migration scripts and helper functions
 
-### High Availability Sync System (NEW - Phase 1)
+## High Availability Sync System (NEW - Phase 1)
 
 **⭐ NEW**: The `SYNC/` directory contains a production-ready **SQLite + Supabase Sync System** with high availability:
 
@@ -519,8 +476,8 @@ See Archon project `038661b1-7e1c-40d0-b4f9-950db24c2a3f` for task details.
 
 ### Start Custom Client
 ```bash
-# Usage: ./start-template.sh CLIENT_NAME PORT DOMAIN
-./start-template.sh xyz-corp 8083 xyz.yourdomain.com
+# Usage: ./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]
+./start-template.sh xyz-corp 8083 xyz.yourdomain.com openwebui-xyz-corp xyz.yourdomain.com
 ```
 
 ### Manage All Clients
@@ -546,7 +503,7 @@ See Archon project `038661b1-7e1c-40d0-b4f9-950db24c2a3f` for task details.
 # Access interactive client manager
 ./client-manager.sh
 
-# Select "3) Manage Existing Deployment"
+# Select "4) Manage Client Deployment"
 # Choose your client
 # Select "8) Migrate to Supabase/PostgreSQL"
 
@@ -557,7 +514,7 @@ See Archon project `038661b1-7e1c-40d0-b4f9-950db24c2a3f` for task details.
 # - Migrating data
 # - Switching to PostgreSQL
 
-# See "Database Migration" section below for full details
+# See "Database Migration" section for full details
 ```
 
 ## File Structure
@@ -569,6 +526,11 @@ mt/
 ├── start-acme-corp.sh           # Pre-configured ACME Corp launcher
 ├── start-beta-client.sh         # Pre-configured Beta Client launcher
 ├── client-manager.sh            # Multi-client management tool
+├── setup/                       # ⭐ Quick server provisioning system
+│   ├── README.md                # Complete setup documentation
+│   └── quick-setup.sh           # Automated server setup script
+├── nginx/                       # ⭐ nginx deployment planning and documentation
+│   └── DEV_PLAN_FOR_NGINX_GET_WELL.md  # Implementation plan for nginx integration
 ├── DB_MIGRATION/                # Database migration system (SQLite → PostgreSQL)
 │   ├── README.md                # Complete migration documentation
 │   ├── db-migration-helper.sh   # Migration utility functions
@@ -611,7 +573,7 @@ Each client gets an isolated Docker volume:
 
 ### Method 1: Use Template Script
 ```bash
-./start-template.sh new-client 8084 newclient.yourdomain.com
+./start-template.sh new-client 8084 newclient.yourdomain.com openwebui-new-client newclient.yourdomain.com
 ```
 
 ### Method 2: Create Dedicated Script
@@ -622,7 +584,7 @@ Each client gets an isolated Docker volume:
 
 2. Edit the new script to change the client name, port, and domain:
    ```bash
-   ${SCRIPT_DIR}/start-template.sh new-client 8084 newclient.yourdomain.com
+   ${SCRIPT_DIR}/start-template.sh new-client 8084 newclient.yourdomain.com openwebui-new-client newclient.yourdomain.com
    ```
 
 3. Make it executable:
@@ -669,60 +631,47 @@ sudo lsof -i :8083
 
 ## nginx Configuration & HTTPS Setup
 
-### Containerized nginx (Recommended)
+### HOST nginx (Recommended for Production)
 
-**For production deployments with automated SSL setup**, use containerized nginx:
+**For production deployments with automated SSL setup**, use HOST nginx (systemd service):
+
+```bash
+# Access interactive client manager
+./client-manager.sh
+
+# Choose option 6: "Manage nginx Installation"
+# Select 1: "Install nginx on HOST (Production - Recommended)"
+# Then create deployments and configure with automated HTTPS
+```
+
+The client manager provides:
+- **Automated SSL certificate generation** with Let's Encrypt (production + staging)
+- **Automated config installation** (no manual copy/paste)
+- **Interactive SSL wizard** with rate limit warnings
+- **Firewall auto-configuration** with fallback logic
+- **nginx test and reload** automation
+
+### Containerized nginx (Experimental)
+
+**For testing containerized nginx** (has known issues with function pipes):
 
 ```bash
 cd mt/nginx-container
 sudo ./deploy-nginx-container.sh
 
-# Then use client-manager.sh to configure clients with automatic HTTPS
+# Then use client-manager.sh to configure clients
 cd ..
 ./client-manager.sh
-# Choose option 5: "Generate nginx config for existing client"
+# Choose option 2: "Manage nginx Container"
 ```
 
 **📖 [Complete nginx Container Documentation →](nginx-container/README.md)**
 
 The nginx-container folder includes:
-- **Automated SSL certificate generation** with Let's Encrypt
-- **HTTP to HTTPS migration** workflow
 - **Container-to-container networking** for better security
 - **Pre-built configuration templates** for HTTP and HTTPS
 - **Comprehensive troubleshooting guide** (MANUAL_SSL_SETUP.md)
-
-### Host nginx (Legacy)
-
-If using nginx directly on the host (not containerized), add a server block for each client:
-
-```nginx
-server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
-    server_name acme.yourdomain.com;
-
-    # SSL certificates
-    ssl_certificate /etc/letsencrypt/live/acme.yourdomain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/acme.yourdomain.com/privkey.pem;
-
-    # SSL configuration
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-    ssl_prefer_server_ciphers on;
-
-    location / {
-        proxy_pass http://localhost:8081;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-**Note**: Containerized nginx is recommended for easier management and automated SSL setup.
+- ⚠️ **Known Issues**: Function pipe saves may fail (use HOST nginx for production)
 
 ## OAuth Configuration
 
@@ -993,60 +942,6 @@ docker images ghcr.io/imagicrafter/open-webui
 
 This gives you **maximum control** over production deployments while automating the heavy lifting of image builds.
 
-#### 4. GitHub Actions (Automatic Image Build)
-
-Your GitHub repository should have Actions configured to automatically build and push to GitHub Container Registry when you push to main. If not set up, the workflow file should be:
-
-```yaml
-# .github/workflows/docker.yml
-name: Build and Push Docker Image
-on:
-  push:
-    branches: [ main ]
-    tags: [ 'v*' ]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        push: true
-        tags: ghcr.io/imagicrafter/open-webui:main
-```
-
-#### 5. Update Production Deployments
-
-```bash
-# SSH to production server
-ssh user@your-production-server
-
-# Navigate to deployment directory
-cd /path/to/open-webui
-
-# Pull latest code (optional - for reference)
-git pull origin main
-
-# Pull updated image
-docker pull ghcr.io/imagicrafter/open-webui:main
-
-# Update all client deployments
-./mt/client-manager.sh stop
-docker ps -a --filter "name=openwebui-" --format "{{.Names}}" | xargs docker rm
-./mt/client-manager.sh start
-
-# Verify all clients are running
-./mt/client-manager.sh list
-```
-
 ### Rollback Process
 
 If an update causes issues:
@@ -1088,14 +983,14 @@ docker stop openwebui-CLIENT_NAME && docker rm openwebui-CLIENT_NAME
 docker pull ghcr.io/imagicrafter/open-webui:main
 
 # Recreate with new image (data automatically preserved)
-./start-template.sh CLIENT_NAME PORT [DOMAIN]
+./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN
 ```
 
 **Example - Update imagicrafter client:**
 ```bash
 docker stop openwebui-imagicrafter && docker rm openwebui-imagicrafter
 docker pull ghcr.io/imagicrafter/open-webui:main
-./start-template.sh imagicrafter 8081
+./start-template.sh imagicrafter 8081 imagicrafter.yourdomain.com openwebui-imagicrafter imagicrafter.yourdomain.com
 ```
 
 ### Configuration Updates
@@ -1107,7 +1002,7 @@ To update environment variables or settings:
 docker stop openwebui-CLIENT_NAME && docker rm openwebui-CLIENT_NAME
 
 # Recreate with new configuration (data preserved)
-./start-template.sh CLIENT_NAME PORT [DOMAIN]
+./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN
 ```
 
 ### Fresh Start (Delete All Data)
@@ -1120,7 +1015,7 @@ docker stop openwebui-CLIENT_NAME && docker rm openwebui-CLIENT_NAME
 docker volume rm openwebui-CLIENT_NAME-data
 
 # Recreate from scratch
-./start-template.sh CLIENT_NAME PORT [DOMAIN]
+./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN
 ```
 
 ### Bulk Updates
@@ -1194,384 +1089,7 @@ Consider migrating to PostgreSQL/Supabase when you need:
 - **Better performance** for large datasets
 - **Cloud-based backups** and disaster recovery
 
-### Prerequisites
-
-Before migrating, ensure you have:
-
-1. **Supabase Account and Project**
-   - Sign up at https://supabase.com
-   - Create a new project (note the project reference and password)
-   - Wait for project to be fully provisioned (~2 minutes)
-
-2. **Enable pgvector Extension** (recommended for RAG features)
-   ```sql
-   -- Run this in Supabase SQL Editor
-   CREATE EXTENSION IF NOT EXISTS vector;
-   ```
-
-3. **Get Connection Details**
-   - Go to Project Settings → Database → Connection String
-   - Note your:
-     - Project Reference (e.g., `abc123xyz`)
-     - Database Password
-     - Region (e.g., `aws-0-us-east-1`)
-
-4. **Stable Internet Connection**
-   - Migration can take 15-30 minutes for large databases
-   - Ensure reliable connectivity throughout the process
-
-### Migration Process
-
-#### Step 1: Access Database Migration Menu
-
-```bash
-./client-manager.sh
-# Select "3) Manage Existing Deployment"
-# Choose your client
-# Select "8) Migrate to Supabase/PostgreSQL"
-```
-
-#### Step 2: Review Migration Plan
-
-The script will display:
-- What will happen during migration
-- Estimated time
-- Requirements checklist
-
-Confirm to proceed.
-
-#### Step 3: Enter Supabase Configuration
-
-When prompted, provide:
-- **Project Reference**: Found in Supabase dashboard URL
-- **Database Password**: The password you set when creating the project
-- **Region**: Geographic region of your Supabase instance
-
-The script will:
-- Automatically use Transaction Mode (port 6543) for optimal performance
-- URL-encode special characters in passwords
-- Test the connection before proceeding
-
-#### Step 4: Automated Migration
-
-The script automatically:
-1. ✅ Tests Supabase connectivity
-2. ✅ Checks pgvector extension
-3. ✅ Creates SQLite backup (in container and on host)
-4. ✅ Initializes PostgreSQL schema
-5. ✅ Runs migration tool (interactive)
-6. ✅ Fixes null byte compatibility issues
-7. ✅ Recreates container with PostgreSQL configuration
-8. ✅ Verifies container is running
-
-#### Step 5: Verify Migration
-
-After successful migration:
-```bash
-# Check container is running
-docker ps | grep openwebui-CLIENT_NAME
-
-# Test web access
-# Visit http://localhost:PORT
-
-# Verify data
-# - Log in with your account
-# - Check chat history
-# - Verify user settings
-```
-
-### Post-Migration
-
-#### View Database Configuration
-
-After migration, option 8 changes to "View database configuration":
-
-```bash
-./client-manager.sh
-# Select "3) Manage Existing Deployment"
-# Choose your migrated client
-# Select "8) View database configuration"
-```
-
-This displays:
-- Database type (PostgreSQL)
-- Host and port
-- Database name
-- Connection status
-- Masked connection string
-
-#### Backup Location
-
-SQLite backups are saved in two locations:
-- **Container**: `/app/backend/data/webui-backup-TIMESTAMP.db`
-- **Host**: `/tmp/webui-backup-TIMESTAMP.db`
-
-**Keep backups for 2-4 weeks** before deleting.
-
-### Rollback to SQLite
-
-If you encounter issues after migration, you can rollback:
-
-#### Automatic Rollback
-
-If migration fails, the script automatically:
-- Restores SQLite backup
-- Recreates container with SQLite configuration
-- Verifies container is running
-
-#### Manual Rollback
-
-If you need to rollback after successful migration:
-
-```bash
-# 1. Stop the PostgreSQL container
-docker stop openwebui-CLIENT_NAME
-docker rm openwebui-CLIENT_NAME
-
-# 2. Restore backup (if you have it)
-BACKUP_PATH="/tmp/webui-backup-TIMESTAMP.db"
-docker run -d --name temp-restore \
-  -v openwebui-CLIENT_NAME-data:/app/backend/data \
-  ghcr.io/imagicrafter/open-webui:main sleep 3600
-
-docker cp "$BACKUP_PATH" temp-restore:/app/backend/data/webui.db
-docker stop temp-restore
-docker rm temp-restore
-
-# 3. Recreate container without DATABASE_URL
-./start-template.sh CLIENT_NAME PORT [DOMAIN]
-```
-
-### Troubleshooting Migration
-
-#### Connection Test Fails
-
-**Problem**: Cannot connect to Supabase
-
-**Solutions**:
-- Verify project is fully provisioned (check Supabase dashboard)
-- Check password is correct (no extra spaces)
-- Ensure your IP isn't blocked by Supabase firewall
-- Try resetting database password in Supabase settings
-
-#### pgvector Extension Missing
-
-**Problem**: Migration warns about missing pgvector
-
-**Solutions**:
-- Go to Supabase → Database → Extensions
-- Enable "vector" extension
-- Or run: `CREATE EXTENSION IF NOT EXISTS vector;`
-- Continue without pgvector if you don't use RAG features
-
-#### Migration Tool Fails
-
-**Problem**: Data migration fails partway through
-
-**Solutions**:
-- Check internet connection stability
-- Verify Supabase storage limits (500MB on free tier)
-- Check Supabase dashboard for database errors
-- Contact support if database is corrupted
-
-#### Container Won't Start After Migration
-
-**Problem**: Container exits immediately after migration
-
-**Solutions**:
-- Check logs: `docker logs openwebui-CLIENT_NAME`
-- Verify DATABASE_URL format is correct
-- Test connection to Supabase manually
-- Try automatic rollback to SQLite
-
-#### Special Characters in Password
-
-**Problem**: Connection fails with special characters in password
-
-**Solutions**:
-- Script automatically URL-encodes passwords
-- If still failing, try changing password to alphanumeric only
-- Avoid: `@`, `#`, `!`, `%`, `&`, `:`, `/`
-
-### Migration Best Practices
-
-#### Before Migration
-
-- [ ] Backup client data manually (see Data Backup section)
-- [ ] Test Supabase connection from your server
-- [ ] Check database size vs Supabase tier limits
-- [ ] Schedule migration during low-traffic period
-- [ ] Notify users of planned downtime
-
-#### During Migration
-
-- [ ] Don't interrupt the migration process
-- [ ] Monitor progress in terminal
-- [ ] Keep terminal session active
-- [ ] Have Supabase dashboard open for monitoring
-
-#### After Migration
-
-- [ ] Test all critical functionality
-- [ ] Monitor container logs for errors
-- [ ] Keep SQLite backup for 2-4 weeks
-- [ ] Document migration date and backup location
-- [ ] Update your infrastructure documentation
-
-### Connection String Reference
-
-#### Format
-
-```
-postgresql://postgres.[PROJECT-REF]:[PASSWORD]@[REGION].pooler.supabase.com:6543/postgres
-```
-
-#### Components
-
-- **Protocol**: `postgresql://` (required)
-- **User**: `postgres.[PROJECT-REF]` (Supabase format)
-- **Password**: URL-encoded password
-- **Host**: `[REGION].pooler.supabase.com`
-- **Port**: `6543` (Transaction Mode - recommended for web apps)
-- **Database**: `postgres` (default Supabase database)
-
-#### Example
-
-```
-postgresql://postgres.abc123xyz:myP%40ssword@aws-0-us-east-1.pooler.supabase.com:6543/postgres
-```
-
-**Note**: Password `myP@ssword` becomes `myP%40ssword` (URL-encoded)
-
-### Security Considerations
-
-#### Current Security Posture (Development/Testing)
-
-After migrating to Supabase, you may notice tables show an **"Unrestricted"** tag in the Supabase dashboard. This indicates **Row Level Security (RLS)** is not enabled.
-
-**For development and testing environments, this is acceptable** because:
-
-- **Application-level security**: Open WebUI handles all authentication and authorization at the application layer
-- **Backend-only access**: Users interact only through the web UI, not directly with the database
-- **Database-per-client isolation**: Each client uses a separate Supabase project/database (not shared tables)
-- **No public API exposure**: You're not using Supabase's auto-generated REST APIs or client libraries
-
-#### When to Enable Row Level Security (RLS)
-
-Consider enabling RLS when moving to **production** or when:
-
-- **Exposing Supabase APIs**: Using Supabase's PostgREST API or client libraries directly
-- **Multiple applications**: Different services accessing the same database with varying permissions
-- **Shared database architecture**: Multiple clients sharing the same Supabase project (not recommended)
-- **Compliance requirements**: Industry regulations requiring database-level access controls
-- **Defense-in-depth**: Adding an extra security layer beyond application logic
-
-#### How to Enable Row Level Security
-
-If you decide to enable RLS for production:
-
-1. **Enable RLS on Tables** (Supabase Dashboard → Table Editor → Settings):
-   ```sql
-   -- Enable RLS for all Open WebUI tables
-   ALTER TABLE public.user ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.chat ENABLE ROW LEVEL SECURITY;
-   ALTER TABLE public.document ENABLE ROW LEVEL SECURITY;
-   -- Repeat for all tables
-   ```
-
-2. **Create RLS Policies** (match Open WebUI's application logic):
-   ```sql
-   -- Example: Users can only access their own chats
-   CREATE POLICY "Users can view own chats"
-     ON public.chat
-     FOR SELECT
-     USING (auth.uid() = user_id);
-
-   -- Example: Users can modify their own chats
-   CREATE POLICY "Users can update own chats"
-     ON public.chat
-     FOR UPDATE
-     USING (auth.uid() = user_id);
-   ```
-
-3. **Test Thoroughly**: Ensure RLS policies don't break existing functionality
-
-**Note**: Open WebUI connects as the `postgres` superuser, which bypasses RLS by default. You'll need to create a dedicated application user with restricted permissions for RLS to be effective.
-
-#### Production Security Best Practices
-
-When deploying to production, implement these additional security measures:
-
-**Database Security:**
-- [ ] Review and restrict Supabase API key permissions
-- [ ] Enable connection pooling with `pgBouncer` (Transaction Mode)
-- [ ] Use SSL/TLS for all database connections (enabled by default)
-- [ ] Monitor database access logs in Supabase dashboard
-- [ ] Set up database activity alerts
-- [ ] Implement IP allowlisting if your infrastructure supports it
-
-**Application Security:**
-- [ ] Use environment variables for sensitive credentials (never hardcode)
-- [ ] Rotate database passwords regularly
-- [ ] Enable audit logging for authentication events
-- [ ] Configure OAuth consent screen with privacy policy
-- [ ] Restrict OAuth to specific Google Workspace domains
-- [ ] Implement rate limiting at nginx/reverse proxy level
-
-**Infrastructure Security:**
-- [ ] Use separate Supabase projects per client for isolation
-- [ ] Enable container health checks and automatic restarts
-- [ ] Implement firewall rules to restrict database access
-- [ ] Set up monitoring and alerting for anomalies
-- [ ] Regular backup verification and disaster recovery testing
-- [ ] Keep Docker images updated for security patches
-
-**Compliance:**
-- [ ] Document data retention policies
-- [ ] Implement GDPR/privacy regulation requirements
-- [ ] Set up encrypted backups with access controls
-- [ ] Establish incident response procedures
-- [ ] Regular security audits of database permissions
-
-#### Recommended Security Architecture
-
-For production deployments:
-
-```
-┌─────────────────────────────────────────────┐
-│  Client 1 (client1.example.com)            │
-│  ┌─────────────────────────────────────┐   │
-│  │ Open WebUI Container                │   │
-│  │ - OAuth (domain-restricted)         │───┼──> Supabase Project 1
-│  │ - Application-level auth            │   │   (dedicated database)
-│  └─────────────────────────────────────┘   │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│  Client 2 (client2.example.com)            │
-│  ┌─────────────────────────────────────┐   │
-│  │ Open WebUI Container                │   │
-│  │ - OAuth (domain-restricted)         │───┼──> Supabase Project 2
-│  │ - Application-level auth            │   │   (dedicated database)
-│  └─────────────────────────────────────┘   │
-└─────────────────────────────────────────────┘
-```
-
-**Key Principle**: Database-per-client isolation provides strong security without requiring RLS.
-
-### Multi-Instance Deployments (Future)
-
-Once migrated to PostgreSQL, you can run multiple Open WebUI instances sharing the same database:
-
-```bash
-# Instance 1
-./start-template.sh client1 8081 client1.example.com
-
-# Instance 2 (sharing same database)
-./start-template.sh client2 8082 client2.example.com
-```
-
-**Note**: Requires setting the same `DATABASE_URL` in both containers. This feature is not yet automated in the client manager.
+**📖 [Complete Migration Documentation →](DB_MIGRATION/README.md)** - Includes prerequisites, step-by-step process, troubleshooting, rollback procedures, and security considerations.
 
 ## Troubleshooting
 
@@ -1610,24 +1128,133 @@ chmod +x *.sh
 ### Quick Start (Automated)
 
 ```bash
-# 1. Deploy containerized nginx
-cd mt/nginx-container
-sudo ./deploy-nginx-container.sh
+# 1. Deploy HOST nginx
+./client-manager.sh
+# Choose option 6: "Manage nginx Installation"
+# Select 1: "Install nginx on HOST (Production - Recommended)"
 
 # 2. Deploy and configure clients with automated HTTPS
-cd ..
 ./client-manager.sh
-# Choose "Deploy new client" and follow the prompts
+# Choose "3) Create New Deployment" and follow the prompts
 # SSL certificates are generated automatically
 ```
 
 ### Detailed Steps
 
-1. **Deploy nginx Container**: See [nginx-container/README.md](nginx-container/README.md)
+1. **Deploy nginx**: Use client-manager.sh option 6 for HOST nginx (recommended)
 2. **Deploy Client Containers**: Use client-manager.sh for automated setup
-3. **Configure HTTPS**: Automated through client-manager.sh (see [MANUAL_SSL_SETUP.md](nginx-container/MANUAL_SSL_SETUP.md) for manual setup)
+3. **Configure HTTPS**: Automated through client-manager.sh (option 5)
 4. **Update Google OAuth redirect URIs**: Add client domains to Google Cloud Console
-5. **Configure firewall rules**: Allow ports 80, 443 for HTTPS
+5. **Configure firewall rules**: Allow ports 80, 443 for HTTPS (auto-configured by setup)
 6. **Set up monitoring and backups**: See [tests/README.md](tests/README.md) for monitoring setup
 
-**📖 For complete HTTPS setup documentation**, see [nginx-container/README.md](nginx-container/README.md)
+**📖 For complete documentation on nginx modes**, see [nginx/DEV_PLAN_FOR_NGINX_GET_WELL.md](nginx/DEV_PLAN_FOR_NGINX_GET_WELL.md)
+
+---
+
+## System Requirements
+
+> **Note**: This section is continuously updated based on production observations. Memory requirements may vary based on workload, number of concurrent users, and model configurations.
+
+### Minimum Hardware Requirements
+
+Based on observed metrics in production environments:
+
+| Component | Minimum RAM | Notes |
+|-----------|-------------|-------|
+| **nginx Container** | 460 MB | With 2 client deployments configured |
+| **Open WebUI Instance** | 600 MB per instance | Per client deployment |
+| **Operating System** | 200-300 MB | Ubuntu baseline |
+| **System Overhead** | 100-200 MB | Docker, system processes |
+
+### Recommended Droplet Sizes
+
+**For 1-2 Client Deployments:**
+- **Droplet Size**: 2GB RAM / 1 vCPU / 50GB SSD
+- **Monthly Cost**: $12
+- **Memory Breakdown**:
+  - nginx: 460 MB
+  - 2 Open WebUI instances: 1,200 MB (600 MB × 2)
+  - System overhead: ~340 MB
+  - **Total**: ~2 GB
+
+**For 3-4 Client Deployments:**
+- **Droplet Size**: 4GB RAM / 2 vCPU / 80GB SSD
+- **Monthly Cost**: $24
+- **Memory Breakdown**:
+  - nginx: 460 MB
+  - 4 Open WebUI instances: 2,400 MB (600 MB × 4)
+  - System overhead: ~400 MB
+  - **Total**: ~3.3 GB
+
+**For 5-8 Client Deployments:**
+- **Droplet Size**: 8GB RAM / 4 vCPU / 160GB SSD
+- **Monthly Cost**: $48
+- **Memory Breakdown**:
+  - nginx: 460 MB
+  - 8 Open WebUI instances: 4,800 MB (600 MB × 8)
+  - System overhead: ~500 MB
+  - **Total**: ~5.8 GB
+
+### Storage Requirements
+
+- **Base Installation**: ~5 GB (Docker images, system packages)
+- **Per Client Instance**: 1-5 GB (varies with conversation history, uploaded files)
+- **SSL Certificates**: <100 MB
+- **nginx Logs**: 100 MB - 1 GB (depending on traffic and log retention)
+- **Backups**: Plan for 2x data size if storing backups locally
+
+**Recommended Storage Allocation:**
+- 1-2 clients: 50 GB SSD
+- 3-4 clients: 80 GB SSD
+- 5-8 clients: 160 GB SSD
+- 9+ clients: 320 GB SSD or add block storage
+
+### CPU Requirements
+
+- **Minimum**: 1 vCPU (suitable for light usage, 1-2 clients)
+- **Recommended**: 2 vCPUs (smooth performance, 3-4 clients)
+- **High Performance**: 4+ vCPUs (8+ clients or high concurrent usage)
+
+### Network Requirements
+
+- **Bandwidth**: 1-5 TB/month depending on usage
+- **IPv6**: **Required** if using Supabase sync functionality
+- **Ports**: 22 (SSH), 80 (HTTP), 443 (HTTPS)
+
+### Additional Considerations
+
+**Memory Scaling Factors:**
+- Memory usage increases with:
+  - Number of concurrent active users
+  - Size of LLM models being served (if using local models)
+  - Conversation history length
+  - Number of uploaded documents
+  - RAG (Retrieval-Augmented Generation) workloads
+
+**Production Recommendations:**
+- Add 20-30% memory headroom for peaks
+- Enable Digital Ocean monitoring to track actual usage
+- Set up alerts for memory > 80% utilization
+- Consider vertical scaling (upgrade droplet) vs horizontal (multiple servers)
+
+### Monitoring Current Usage
+
+Check current memory usage on your droplet:
+
+```bash
+# View overall memory usage
+free -h
+
+# View memory usage per container
+docker stats --no-stream
+
+# View memory usage for specific container
+docker stats openwebui-nginx --no-stream
+docker stats openwebui-CLIENT-NAME --no-stream
+```
+
+**Monitor in client-manager:**
+- Option 1: View Deployment Status (shows container resource usage)
+
+> **Contributing**: If you observe different memory requirements in your environment, please report them so we can refine these recommendations.

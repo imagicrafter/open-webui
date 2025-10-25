@@ -176,10 +176,11 @@ show_main_menu() {
     echo "3) Create New Deployment"
     echo "4) Manage Client Deployment"
     echo "5) Manage Sync Cluster"
-    echo "6) Exit"
+    echo "6) Manage nginx Installation"
     echo "$security_option"
+    echo "8) Exit"
     echo
-    echo -n "Please select an option (1-7): "
+    echo -n "Please select an option (1-8): "
 }
 
 # Detect container type (sync-node vs client)
@@ -2256,6 +2257,7 @@ manage_single_deployment() {
                             -e WEBUI_NAME="$webui_name" \
                             -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
+                            -e WEBUI_BASE_URL="$webui_url" \
                             -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
@@ -2280,6 +2282,7 @@ manage_single_deployment() {
                             -e WEBUI_NAME="$webui_name" \
                             -e WEBUI_SECRET_KEY="$webui_secret_key" \
                             -e WEBUI_URL="$webui_url" \
+                            -e WEBUI_BASE_URL="$webui_url" \
                             -e ENABLE_VERSION_UPDATE_CHECK=false \
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
@@ -2428,6 +2431,10 @@ manage_single_deployment() {
 
                     # Create new container with new name and domain
                     echo "Creating new container: $new_container_name"
+
+                    # Calculate base URL from redirect URI
+                    local new_base_url="${new_redirect_uri%/oauth/google/callback}"
+
                     docker run -d \
                         --name "$new_container_name" \
                         -p "${current_port}:8080" \
@@ -2438,6 +2445,8 @@ manage_single_deployment() {
                         -e OAUTH_ALLOWED_DOMAINS="$current_allowed_domains" \
                         -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
                         -e WEBUI_NAME="$new_webui_name" \
+                        -e WEBUI_URL="$new_base_url" \
+                        -e WEBUI_BASE_URL="$new_base_url" \
                         -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                         -e FQDN="$new_fqdn" \
                         -e CLIENT_NAME="$new_client_name" \
@@ -3032,30 +3041,147 @@ generate_nginx_config() {
                     echo "✅ SSL is already configured for this domain"
                 fi
             else
-                # Host nginx instructions
-                echo "1. Copy config to server:"
-                echo "   # For local deployment (script running on production server):"
-                echo "   sudo cp $config_file ${nginx_config_dest}"
+                # Host nginx - AUTOMATED installation
+                echo "╔════════════════════════════════════════╗"
+                echo "║   Automated nginx Configuration        ║"
+                echo "╚════════════════════════════════════════╝"
                 echo
-                echo "   # For remote deployment (script running on local machine):"
-                echo "   scp $config_file ${current_user}@${current_hostname}:${nginx_config_dest}"
+
+                # Step 1: Copy config to sites-available
+                echo "📋 Installing nginx configuration..."
                 echo
-                echo "2. Enable the site:"
-                echo "   sudo ln -s /etc/nginx/sites-available/${domain} /etc/nginx/sites-enabled/"
+                if sudo cp "$config_file" "${nginx_config_dest}"; then
+                    echo "✅ Config copied to ${nginx_config_dest}"
+                else
+                    echo "❌ Failed to copy config"
+                    echo "Press Enter to continue..."
+                    read
+                    return 1
+                fi
+
+                # Step 2: Enable site
                 echo
-                echo "3. Configure DNS:"
-                echo "   - Create A record: ${domain} → $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP')"
-                echo "   - Wait for DNS propagation (1-5 minutes)"
+                if sudo ln -sf "${nginx_config_dest}" "/etc/nginx/sites-enabled/${domain}"; then
+                    echo "✅ Site enabled in /etc/nginx/sites-enabled/${domain}"
+                else
+                    echo "❌ Failed to enable site"
+                    echo "Press Enter to continue..."
+                    read
+                    return 1
+                fi
+
+                # Step 3: Test nginx config
                 echo
-                echo "4. Test nginx config:"
-                echo "   sudo nginx -t"
+                echo "🔍 Testing nginx configuration..."
+                if sudo nginx -t; then
+                    echo "✅ nginx configuration test passed"
+                else
+                    echo "❌ nginx configuration has errors"
+                    echo "   Please review the config and try again"
+                    echo "Press Enter to continue..."
+                    read
+                    return 1
+                fi
+
+                # Step 4: Reload nginx
                 echo
-                echo "5. Generate SSL certificate:"
-                echo "   sudo certbot --nginx -d ${domain}"
-                echo "   (Certbot will automatically modify nginx config for HTTPS)"
+                echo -n "Reload nginx now? (Y/n): "
+                read reload_confirm
+                if [[ ! "$reload_confirm" =~ ^[Nn]$ ]]; then
+                    if sudo systemctl reload nginx; then
+                        echo "✅ nginx reloaded successfully"
+                    else
+                        echo "❌ Failed to reload nginx"
+                        echo "   Try: sudo systemctl status nginx"
+                    fi
+                else
+                    echo "⚠️  Remember to reload nginx: sudo systemctl reload nginx"
+                fi
+
+                # Step 5: DNS Configuration reminder
                 echo
-                echo "6. Reload nginx configuration:"
-                echo "   sudo systemctl reload nginx"
+                echo "═══════════════════════════════════════"
+                echo "DNS Configuration Required"
+                echo "═══════════════════════════════════════"
+                echo "Create A record: ${domain} → $(curl -s ifconfig.me 2>/dev/null || echo 'YOUR_SERVER_IP')"
+                echo "Wait for DNS propagation (1-5 minutes)"
+                echo "Test: dig ${domain} +short"
+                echo
+
+                # Step 6: SSL Certificate Setup
+                echo "═══════════════════════════════════════"
+                echo "SSL Certificate Setup"
+                echo "═══════════════════════════════════════"
+                echo
+                echo "⚠️  NOTE: DNS must be configured and propagated first!"
+                echo
+                echo "Do you want to generate an SSL certificate now?"
+                echo "1) Production certificate (Let's Encrypt - rate limited)"
+                echo "2) Staging certificate (for testing - no rate limits)"
+                echo "3) Skip (generate later)"
+                echo
+                echo -n "Choose option (1-3): "
+                read cert_choice
+
+                case "$cert_choice" in
+                    1)
+                        echo
+                        echo "Generating production SSL certificate..."
+                        echo "⚠️  Let's Encrypt rate limit: 5 certificates per domain per week"
+                        echo
+                        if sudo certbot --nginx -d "${domain}" --non-interactive --agree-tos --email "admin@${domain}"; then
+                            echo
+                            echo "✅ Production SSL certificate installed!"
+                            echo "✅ nginx automatically configured for HTTPS"
+                            echo
+                            echo "Test: curl -I https://${domain}"
+                        else
+                            echo
+                            echo "❌ Failed to obtain SSL certificate"
+                            echo "Common issues:"
+                            echo "  - DNS not configured or not propagated yet"
+                            echo "  - Domain not pointing to this server: $(curl -s ifconfig.me)"
+                            echo "  - Port 80 not accessible from internet"
+                            echo
+                            echo "Manual retry: sudo certbot --nginx -d ${domain}"
+                        fi
+                        ;;
+                    2)
+                        echo
+                        echo "Generating staging SSL certificate..."
+                        echo "ℹ️  This creates a test certificate (not trusted by browsers)"
+                        echo
+                        if sudo certbot --nginx -d "${domain}" --staging --non-interactive --agree-tos --email "admin@${domain}"; then
+                            echo
+                            echo "✅ Staging SSL certificate installed!"
+                            echo "⚠️  This is a TEST certificate - browsers will show warnings"
+                            echo
+                            echo "For production certificate:"
+                            echo "  1. Remove staging cert: sudo certbot delete --cert-name ${domain}"
+                            echo "  2. Run option 5 again and choose production"
+                        else
+                            echo
+                            echo "❌ Failed to obtain staging certificate"
+                            echo "Manual retry: sudo certbot --nginx -d ${domain} --staging"
+                        fi
+                        ;;
+                    3)
+                        echo
+                        echo "Skipped SSL certificate generation."
+                        echo
+                        echo "Generate later with:"
+                        echo "  Production: sudo certbot --nginx -d ${domain}"
+                        echo "  Staging: sudo certbot --nginx -d ${domain} --staging"
+                        ;;
+                    *)
+                        echo
+                        echo "Invalid choice. Skipping SSL setup."
+                        echo
+                        echo "Generate manually with:"
+                        echo "  Production: sudo certbot --nginx -d ${domain}"
+                        echo "  Staging: sudo certbot --nginx -d ${domain} --staging"
+                        ;;
+                esac
             fi
             echo
             echo "7. Update Google OAuth with redirect URI:"
@@ -3270,6 +3396,373 @@ show_security_advisor_menu() {
     done
 }
 
+# ═══════════════════════════════════════
+# nginx Management Functions
+# ═══════════════════════════════════════
+
+check_nginx_status() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║         nginx Status Check             ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+
+    # Check for HOST nginx
+    if command -v nginx &> /dev/null; then
+        echo "🔍 HOST nginx Installation:"
+        echo "  Version: $(nginx -v 2>&1 | cut -d/ -f2)"
+        echo
+        if systemctl is-active --quiet nginx; then
+            echo "  Status: ✅ RUNNING"
+        else
+            echo "  Status: ❌ STOPPED"
+        fi
+        echo
+        echo "  Systemd service status:"
+        systemctl status nginx --no-pager | head -10
+        echo
+    else
+        echo "❌ HOST nginx not installed"
+        echo
+    fi
+
+    # Check for containerized nginx
+    if docker ps -a --filter "name=openwebui-nginx" --format "{{.Names}}" | grep -q "openwebui-nginx"; then
+        echo "🔍 Containerized nginx:"
+        nginx_status=$(docker inspect -f '{{.State.Status}}' openwebui-nginx 2>/dev/null)
+        if [[ "$nginx_status" == "running" ]]; then
+            echo "  Status: ✅ RUNNING"
+        else
+            echo "  Status: ❌ STOPPED (state: $nginx_status)"
+        fi
+        echo "  Container: openwebui-nginx"
+        echo
+        docker ps -a --filter "name=openwebui-nginx" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        echo
+    else
+        echo "❌ Containerized nginx not deployed"
+        echo
+    fi
+
+    echo "Press Enter to continue..."
+    read
+}
+
+install_nginx_host() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║    Install nginx on HOST (Production)  ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+    echo "This will install nginx as a systemd service on the host."
+    echo "This matches the proven working configuration on 159.65.34.41."
+    echo
+    echo "⚠️  NOTE: This requires sudo privileges"
+    echo
+    echo -n "Continue with installation? (y/N): "
+    read confirm
+
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled."
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    echo
+    echo "📦 Installing nginx and certbot..."
+
+    # Update package list
+    sudo apt-get update
+
+    # Install nginx
+    if ! command -v nginx &> /dev/null; then
+        sudo apt-get install -y nginx
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install nginx"
+            echo "Press Enter to continue..."
+            read
+            return
+        fi
+    else
+        echo "✅ nginx already installed"
+    fi
+
+    # Install certbot for SSL
+    if ! command -v certbot &> /dev/null; then
+        sudo apt-get install -y certbot python3-certbot-nginx
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install certbot"
+            echo "Press Enter to continue..."
+            read
+            return
+        fi
+    else
+        echo "✅ certbot already installed"
+    fi
+
+    # Configure firewall for nginx
+    echo
+    echo "🔥 Configuring firewall for nginx..."
+    if command -v ufw &> /dev/null; then
+        # Check if ufw is active
+        if sudo ufw status | grep -q "Status: active"; then
+            # Try 'Nginx Full' profile first, fallback to direct port rules
+            if sudo ufw allow 'Nginx Full' 2>/dev/null; then
+                # Verify the rule was added
+                if sudo ufw status | grep -qiE "(Nginx Full|80.*ALLOW|443.*ALLOW)"; then
+                    echo "✅ Firewall configured to allow HTTP (80) and HTTPS (443)"
+                else
+                    echo "⚠️  'Nginx Full' command succeeded but rules not visible"
+                    echo "   Trying direct port configuration..."
+                    sudo ufw allow 80/tcp
+                    sudo ufw allow 443/tcp
+                    echo "✅ Firewall configured with direct port rules"
+                fi
+            else
+                echo "ℹ️  'Nginx Full' profile not available, using direct port rules..."
+                sudo ufw allow 80/tcp
+                sudo ufw allow 443/tcp
+                if sudo ufw status | grep -qE "(80/tcp.*ALLOW|443/tcp.*ALLOW)"; then
+                    echo "✅ Firewall configured to allow HTTP (80) and HTTPS (443)"
+                else
+                    echo "❌ Failed to configure firewall rules"
+                    echo "   Please run manually: sudo ufw allow 80/tcp && sudo ufw allow 443/tcp"
+                fi
+            fi
+        else
+            echo "⚠️  UFW firewall is installed but not active"
+            echo "   To enable: sudo ufw enable"
+            echo "   Then run: sudo ufw allow 80/tcp && sudo ufw allow 443/tcp"
+        fi
+    else
+        echo "⚠️  UFW firewall not installed (nginx will still work)"
+        echo "   Install with: sudo apt-get install -y ufw"
+    fi
+
+    # Enable and start nginx
+    echo
+    echo "🚀 Enabling and starting nginx service..."
+    sudo systemctl enable nginx
+    sudo systemctl start nginx
+
+    # Check status
+    if systemctl is-active --quiet nginx; then
+        echo
+        echo "✅ nginx installed and running successfully!"
+        echo
+        echo "📋 Next steps:"
+        echo "  1. Create client deployment (option 3 from main menu)"
+        echo "  2. Generate nginx config (option 5 from main menu)"
+        echo "  3. Copy config: sudo cp /tmp/DOMAIN-nginx.conf /etc/nginx/sites-available/DOMAIN"
+        echo "  4. Enable site: sudo ln -s /etc/nginx/sites-available/DOMAIN /etc/nginx/sites-enabled/"
+        echo "  5. Test config: sudo nginx -t"
+        echo "  6. Generate SSL: sudo certbot --nginx -d DOMAIN"
+        echo "  7. Reload nginx: sudo systemctl reload nginx"
+    else
+        echo
+        echo "❌ nginx installed but failed to start. Check logs with:"
+        echo "   sudo systemctl status nginx"
+        echo "   sudo journalctl -u nginx -n 50"
+    fi
+
+    echo
+    echo "Press Enter to continue..."
+    read
+}
+
+install_nginx_container() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║   Install nginx in Container (TESTING) ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+    echo "⚠️  WARNING: EXPERIMENTAL - For testing only!"
+    echo
+    echo "This deployment mode has known issues:"
+    echo "  - Function pipe saves may fail"
+    echo "  - Still under validation and debugging"
+    echo
+    echo "Use HOST nginx installation (option 1) for production."
+    echo
+    echo -n "Continue with containerized nginx? (y/N): "
+    read confirm
+
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled."
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    echo
+    echo "Deploying containerized nginx..."
+    echo
+
+    # Check if deployment script exists
+    local deploy_script="${SCRIPT_DIR}/nginx-container/deploy-nginx-container.sh"
+    if [ ! -f "$deploy_script" ]; then
+        echo "❌ Deployment script not found: $deploy_script"
+        echo
+        echo "Expected location: mt/nginx-container/deploy-nginx-container.sh"
+        echo
+        echo "Press Enter to continue..."
+        read
+        return 1
+    fi
+
+    # Run the deployment script
+    if bash "$deploy_script"; then
+        echo
+        echo "✅ Containerized nginx deployment completed"
+        echo
+        echo "⚠️  REMINDER: This is EXPERIMENTAL"
+        echo "   Known issue: Function pipe saves may fail"
+        echo "   For production, use HOST nginx (option 1)"
+    else
+        echo
+        echo "❌ Deployment failed"
+        echo "   Check the error messages above"
+        echo "   For production deployments, use HOST nginx (option 1)"
+    fi
+
+    echo
+    echo "Press Enter to continue..."
+    read
+}
+
+uninstall_nginx() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║         Uninstall nginx                 ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+
+    # Detect what's installed
+    host_installed=false
+    container_installed=false
+
+    if command -v nginx &> /dev/null; then
+        host_installed=true
+    fi
+
+    if docker ps -a --filter "name=openwebui-nginx" --format "{{.Names}}" | grep -q "openwebui-nginx"; then
+        container_installed=true
+    fi
+
+    if [[ "$host_installed" == false ]] && [[ "$container_installed" == false ]]; then
+        echo "❌ No nginx installation found"
+        echo
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    # Show what will be removed
+    echo "The following will be removed:"
+    echo
+    if [[ "$host_installed" == true ]]; then
+        echo "  - HOST nginx (systemd service)"
+        echo "  - nginx configuration files in /etc/nginx/"
+        echo "  - certbot and SSL certificates"
+    fi
+    if [[ "$container_installed" == true ]]; then
+        echo "  - Containerized nginx (Docker container)"
+        echo "  - Container volumes and configs"
+    fi
+    echo
+    echo "⚠️  WARNING: This will stop all nginx services!"
+    echo
+    echo -n "Type 'REMOVE' to confirm removal: "
+    read confirm
+
+    if [[ "$confirm" != "REMOVE" ]]; then
+        echo "Uninstallation cancelled."
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    echo
+
+    # Remove containerized nginx first
+    if [[ "$container_installed" == true ]]; then
+        echo "🗑️  Removing containerized nginx..."
+        docker stop openwebui-nginx 2>/dev/null
+        docker rm openwebui-nginx 2>/dev/null
+        echo "✅ Containerized nginx removed"
+        echo
+    fi
+
+    # Remove HOST nginx
+    if [[ "$host_installed" == true ]]; then
+        echo "🗑️  Removing HOST nginx..."
+        echo -n "Also remove SSL certificates? (y/N): "
+        read remove_ssl
+
+        sudo systemctl stop nginx
+        sudo systemctl disable nginx
+        sudo apt-get remove -y nginx nginx-common
+
+        if [[ "$remove_ssl" =~ ^[Yy]$ ]]; then
+            sudo apt-get remove -y certbot python3-certbot-nginx
+            echo "Note: SSL certificates in /etc/letsencrypt/ preserved."
+            echo "      Remove manually if desired: sudo rm -rf /etc/letsencrypt/"
+        fi
+
+        sudo apt-get autoremove -y
+
+        echo "✅ HOST nginx uninstalled"
+        echo
+        echo "Note: Configuration files in /etc/nginx/ preserved."
+        echo "      Remove manually if desired: sudo rm -rf /etc/nginx/"
+    fi
+
+    echo
+    echo "Press Enter to continue..."
+    read
+}
+
+manage_nginx_menu() {
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║        Manage nginx Installation        ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "1) Install nginx on HOST (Production - Recommended)"
+        echo "2) Install nginx in Container (Experimental)"
+        echo "3) Check nginx Status"
+        echo "4) Uninstall nginx"
+        echo "5) Back to Main Menu"
+        echo
+        echo -n "Please select an option (1-5): "
+        read choice
+
+        case "$choice" in
+            1)
+                install_nginx_host
+                ;;
+            2)
+                install_nginx_container
+                ;;
+            3)
+                check_nginx_status
+                ;;
+            4)
+                uninstall_nginx
+                ;;
+            5)
+                return
+                ;;
+            *)
+                echo "Invalid choice. Press Enter to continue..."
+                read
+                ;;
+        esac
+    done
+}
+
 # Main execution logic
 if [ $# -eq 0 ]; then
     # Interactive menu mode
@@ -3298,11 +3791,14 @@ if [ $# -eq 0 ]; then
                 manage_sync_cluster_menu
                 ;;
             6)
-                echo "Goodbye!"
-                exit 0
+                manage_nginx_menu
                 ;;
             7)
                 show_security_advisor_menu
+                ;;
+            8)
+                echo "Goodbye!"
+                exit 0
                 ;;
             *)
                 echo "Invalid choice. Press Enter to continue..."
