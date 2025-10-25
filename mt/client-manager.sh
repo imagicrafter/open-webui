@@ -154,33 +154,24 @@ show_main_menu() {
     echo "╚════════════════════════════════════════╝"
     echo
 
-    # Check if nginx is deployed to change menu text
-    local nginx_option
-    if docker ps -a --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
-        nginx_option="2) Manage nginx Container"
-    else
-        nginx_option="2) Deploy nginx Container"
-    fi
-
     # Check security status for menu item
     local security_issues=$(count_security_issues)
     local security_option
     if [[ "$security_issues" -gt 0 ]]; then
-        security_option="7) ❌ Security Advisement ($security_issues issues)"
+        security_option="6) ❌ Security Advisement ($security_issues issues)"
     else
-        security_option="7) Security Advisor"
+        security_option="6) Security Advisor"
     fi
 
     echo "1) View Deployment Status"
-    echo "$nginx_option"
-    echo "3) Create New Deployment"
-    echo "4) Manage Client Deployment"
-    echo "5) Manage Sync Cluster"
-    echo "6) Manage nginx Installation"
+    echo "2) Create New Deployment"
+    echo "3) Manage Client Deployment"
+    echo "4) Manage Sync Cluster"
+    echo "5) Manage nginx Installation"
     echo "$security_option"
-    echo "8) Exit"
+    echo "7) Exit"
     echo
-    echo -n "Please select an option (1-8): "
+    echo -n "Please select an option (1-7): "
 }
 
 # Detect container type (sync-node vs client)
@@ -395,139 +386,6 @@ create_new_deployment() {
 }
 
 # Manage or deploy nginx container
-manage_or_deploy_nginx() {
-    # Check if nginx container exists
-    if docker ps -a --format "{{.Names}}" | grep -q "^openwebui-nginx$"; then
-        # nginx exists - show management menu
-        manage_nginx_menu
-    else
-        # nginx doesn't exist - show deployment prompt
-        deploy_nginx_container
-    fi
-}
-
-# Deploy nginx container (first-time setup)
-deploy_nginx_container() {
-    clear
-    echo "╔════════════════════════════════════════╗"
-    echo "║      Deploy nginx Container            ║"
-    echo "╚════════════════════════════════════════╝"
-    echo
-    echo "nginx container not found. Deploy now?"
-    echo
-    echo -n "Deploy nginx container? (y/N): "
-    read confirm
-
-    if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        echo
-        echo "Deploying nginx container..."
-        echo
-
-        # Run the deployment script
-        "${SCRIPT_DIR}/nginx-container/deploy-nginx-container.sh"
-
-        echo
-        echo "✅ nginx deployment complete!"
-    else
-        echo "Deployment cancelled."
-    fi
-
-    echo
-    echo "Press Enter to continue..."
-    read
-}
-
-# Manage nginx container menu
-manage_nginx_menu() {
-    while true; do
-        clear
-        echo "╔════════════════════════════════════════╗"
-        echo "║         Manage nginx Container         ║"
-        echo "╚════════════════════════════════════════╝"
-        echo
-
-        # Show nginx status
-        local status=$(docker ps --filter "name=openwebui-nginx" --format "{{.Status}}")
-        local ports=$(docker ps -a --filter "name=openwebui-nginx" --format "{{.Ports}}")
-
-        echo "Status: $status"
-        echo "Ports:  $ports"
-        echo "Network: openwebui-network"
-        echo
-
-        echo "1) Generate nginx Configuration for Client"
-        echo "2) View nginx Logs"
-        echo "3) Test nginx Configuration"
-        echo "4) Reload nginx"
-        echo "5) Restart nginx Container"
-        echo "6) Stop nginx Container"
-        echo "7) Return to Main Menu"
-        echo
-        echo -n "Select action (1-7): "
-        read action
-
-        case "$action" in
-            1)
-                generate_nginx_config
-                ;;
-            2)
-                clear
-                echo "Showing nginx logs (Ctrl+C to exit)..."
-                echo
-                docker logs -f openwebui-nginx
-                ;;
-            3)
-                clear
-                echo "Testing nginx configuration..."
-                echo
-                docker exec openwebui-nginx nginx -t
-                echo
-                echo "Press Enter to continue..."
-                read
-                ;;
-            4)
-                clear
-                echo "Reloading nginx..."
-                docker exec openwebui-nginx nginx -s reload
-                echo "✅ nginx reloaded"
-                echo
-                echo "Press Enter to continue..."
-                read
-                ;;
-            5)
-                clear
-                echo "Restarting nginx container..."
-                docker restart openwebui-nginx
-                echo "✅ nginx container restarted"
-                echo
-                echo "Press Enter to continue..."
-                read
-                ;;
-            6)
-                clear
-                echo "⚠️  Stopping nginx will make all client sites inaccessible!"
-                echo -n "Are you sure? (y/N): "
-                read confirm
-                if [[ "$confirm" =~ ^[Yy]$ ]]; then
-                    docker stop openwebui-nginx
-                    echo "✅ nginx container stopped"
-                else
-                    echo "Cancelled"
-                fi
-                echo
-                echo "Press Enter to continue..."
-                read
-                ;;
-            7)
-                return
-                ;;
-            *)
-                echo "Invalid selection. Press Enter to continue..."
-                read
-                ;;
-        esac
-    done
-}
 
 # Sync-node management menu
 manage_sync_node() {
@@ -3402,32 +3260,38 @@ show_security_advisor_menu() {
 
 check_nginx_status() {
     clear
-    echo "╔════════════════════════════════════════╗"
-    echo "║         nginx Status Check             ║"
-    echo "╚════════════════════════════════════════╝"
-    echo
 
-    # Check for HOST nginx
-    if command -v nginx &> /dev/null; then
-        echo "🔍 HOST nginx Installation:"
-        echo "  Version: $(nginx -v 2>&1 | cut -d/ -f2)"
-        echo
-        if systemctl is-active --quiet nginx; then
-            echo "  Status: ✅ RUNNING"
-        else
-            echo "  Status: ❌ STOPPED"
-        fi
-        echo
-        echo "  Systemd service status:"
-        systemctl status nginx --no-pager | head -10
-        echo
+    # Check if status script exists
+    local status_script="${SCRIPT_DIR}/nginx/scripts/check-nginx-status.sh"
+    if [ -f "$status_script" ]; then
+        # Run the HOST nginx status check script
+        bash "$status_script"
     else
-        echo "❌ HOST nginx not installed"
+        # Fallback to inline HOST nginx check
+        echo "╔════════════════════════════════════════╗"
+        echo "║         nginx Status Check             ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+
+        if command -v nginx &> /dev/null; then
+            echo "🔍 HOST nginx Installation:"
+            echo "  Version: $(nginx -v 2>&1 | cut -d/ -f2)"
+            echo
+            if systemctl is-active --quiet nginx; then
+                echo "  Status: ✅ RUNNING"
+            else
+                echo "  Status: ❌ STOPPED"
+            fi
+        else
+            echo "❌ HOST nginx not installed"
+        fi
         echo
     fi
 
-    # Check for containerized nginx
-    if docker ps -a --filter "name=openwebui-nginx" --format "{{.Names}}" | grep -q "openwebui-nginx"; then
+    # Check for containerized nginx (keep this inline as it's simple)
+    echo "─────────────────────────────────────────"
+    echo
+    if docker ps -a --filter "name=openwebui-nginx" --format "{{.Names}}" 2>/dev/null | grep -q "openwebui-nginx"; then
         echo "🔍 Containerized nginx:"
         nginx_status=$(docker inspect -f '{{.State.Status}}' openwebui-nginx 2>/dev/null)
         if [[ "$nginx_status" == "running" ]]; then
@@ -3450,24 +3314,32 @@ check_nginx_status() {
 
 install_nginx_host() {
     clear
-    echo "╔════════════════════════════════════════╗"
-    echo "║    Install nginx on HOST (Production)  ║"
-    echo "╚════════════════════════════════════════╝"
-    echo
-    echo "This will install nginx as a systemd service on the host."
-    echo "This matches the proven working configuration on 159.65.34.41."
-    echo
-    echo "⚠️  NOTE: This requires sudo privileges"
-    echo
-    echo -n "Continue with installation? (y/N): "
-    read confirm
 
-    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-        echo "Installation cancelled."
-        echo "Press Enter to continue..."
-        read
-        return
-    fi
+    # Check if installation script exists
+    local install_script="${SCRIPT_DIR}/nginx/scripts/install-nginx-host.sh"
+    if [ -f "$install_script" ]; then
+        # Run the installation script
+        bash "$install_script"
+    else
+        echo "╔════════════════════════════════════════╗"
+        echo "║    Install nginx on HOST (Production)  ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "❌ Installation script not found: $install_script"
+        echo
+        echo "Expected location: mt/nginx/scripts/install-nginx-host.sh"
+        echo
+        echo "Falling back to quick installation..."
+        echo
+        echo -n "Continue with installation? (y/N): "
+        read confirm
+
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+            echo "Installation cancelled."
+            echo "Press Enter to continue..."
+            read
+            return
+        fi
 
     echo
     echo "📦 Installing nginx and certbot..."
@@ -3564,6 +3436,11 @@ install_nginx_host() {
         echo "❌ nginx installed but failed to start. Check logs with:"
         echo "   sudo systemctl status nginx"
         echo "   sudo journalctl -u nginx -n 50"
+    fi
+
+        echo
+        echo "Press Enter to continue..."
+        read
     fi
 
     echo
@@ -3697,30 +3574,136 @@ uninstall_nginx() {
     # Remove HOST nginx
     if [[ "$host_installed" == true ]]; then
         echo "🗑️  Removing HOST nginx..."
-        echo -n "Also remove SSL certificates? (y/N): "
-        read remove_ssl
-
-        sudo systemctl stop nginx
-        sudo systemctl disable nginx
-        sudo apt-get remove -y nginx nginx-common
-
-        if [[ "$remove_ssl" =~ ^[Yy]$ ]]; then
-            sudo apt-get remove -y certbot python3-certbot-nginx
-            echo "Note: SSL certificates in /etc/letsencrypt/ preserved."
-            echo "      Remove manually if desired: sudo rm -rf /etc/letsencrypt/"
-        fi
-
-        sudo apt-get autoremove -y
-
-        echo "✅ HOST nginx uninstalled"
         echo
-        echo "Note: Configuration files in /etc/nginx/ preserved."
-        echo "      Remove manually if desired: sudo rm -rf /etc/nginx/"
+
+        # Check if uninstall script exists
+        local uninstall_script="${SCRIPT_DIR}/nginx/scripts/uninstall-nginx-host.sh"
+        if [ -f "$uninstall_script" ]; then
+            # Run the uninstall script
+            bash "$uninstall_script"
+        else
+            # Fallback to inline uninstallation
+            echo -n "Also remove SSL certificates? (y/N): "
+            read remove_ssl
+
+            sudo systemctl stop nginx
+            sudo systemctl disable nginx
+            sudo apt-get remove -y nginx nginx-common
+
+            if [[ "$remove_ssl" =~ ^[Yy]$ ]]; then
+                sudo apt-get remove -y certbot python3-certbot-nginx
+                echo "Note: SSL certificates in /etc/letsencrypt/ preserved."
+                echo "      Remove manually if desired: sudo rm -rf /etc/letsencrypt/"
+            fi
+
+            sudo apt-get autoremove -y
+
+            echo "✅ HOST nginx uninstalled"
+            echo
+            echo "Note: Configuration files in /etc/nginx/ preserved."
+            echo "      Remove manually if desired: sudo rm -rf /etc/nginx/"
+        fi
     fi
 
     echo
     echo "Press Enter to continue..."
     read
+}
+
+# Manage containerized nginx container submenu
+manage_nginx_container_submenu() {
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║      Manage nginx Container            ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+
+        # Show nginx container status
+        local status=$(docker ps --filter "name=openwebui-nginx" --format "{{.Status}}" 2>/dev/null)
+        local ports=$(docker ps -a --filter "name=openwebui-nginx" --format "{{.Ports}}" 2>/dev/null)
+
+        if [ -z "$status" ]; then
+            echo "⚠️  nginx container not found"
+            echo
+            echo "Press Enter to return to nginx menu..."
+            read
+            return
+        fi
+
+        echo "Status: $status"
+        echo "Ports:  $ports"
+        echo "Network: openwebui-network"
+        echo
+
+        echo "1) View nginx Logs"
+        echo "2) Test nginx Configuration"
+        echo "3) Reload nginx"
+        echo "4) Restart nginx Container"
+        echo "5) Stop nginx Container"
+        echo "6) Back to nginx Menu"
+        echo
+        echo -n "Select action (1-6): "
+        read action
+
+        case "$action" in
+            1)
+                clear
+                echo "Showing nginx logs (Ctrl+C to exit)..."
+                echo
+                docker logs -f openwebui-nginx
+                ;;
+            2)
+                clear
+                echo "Testing nginx configuration..."
+                echo
+                docker exec openwebui-nginx nginx -t
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            3)
+                clear
+                echo "Reloading nginx..."
+                docker exec openwebui-nginx nginx -s reload
+                echo "✅ nginx reloaded"
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            4)
+                clear
+                echo "Restarting nginx container..."
+                docker restart openwebui-nginx
+                echo "✅ nginx container restarted"
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            5)
+                clear
+                echo "⚠️  Stopping nginx will make all client sites inaccessible!"
+                echo -n "Are you sure? (y/N): "
+                read confirm
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    docker stop openwebui-nginx
+                    echo "✅ nginx container stopped"
+                else
+                    echo "Cancelled"
+                fi
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            6)
+                return
+                ;;
+            *)
+                echo "Invalid selection. Press Enter to continue..."
+                read
+                ;;
+        esac
+    done
 }
 
 manage_nginx_menu() {
@@ -3730,13 +3713,28 @@ manage_nginx_menu() {
         echo "║        Manage nginx Installation        ║"
         echo "╚════════════════════════════════════════╝"
         echo
+
+        # Check if containerized nginx exists
+        local nginx_container_exists=false
+        if docker ps -a --format "{{.Names}}" 2>/dev/null | grep -q "^openwebui-nginx$"; then
+            nginx_container_exists=true
+        fi
+
         echo "1) Install nginx on HOST (Production - Recommended)"
         echo "2) Install nginx in Container (Experimental)"
-        echo "3) Check nginx Status"
-        echo "4) Uninstall nginx"
-        echo "5) Back to Main Menu"
+
+        if [ "$nginx_container_exists" = true ]; then
+            echo "3) Manage nginx Container ✓"
+        else
+            echo "3) Manage nginx Container (not installed)"
+        fi
+
+        echo "4) Generate nginx Configuration for Client"
+        echo "5) Check nginx Status"
+        echo "6) Uninstall nginx"
+        echo "7) Back to Main Menu"
         echo
-        echo -n "Please select an option (1-5): "
+        echo -n "Please select an option (1-7): "
         read choice
 
         case "$choice" in
@@ -3747,12 +3745,27 @@ manage_nginx_menu() {
                 install_nginx_container
                 ;;
             3)
-                check_nginx_status
+                if [ "$nginx_container_exists" = true ]; then
+                    manage_nginx_container_submenu
+                else
+                    echo
+                    echo "nginx container is not installed."
+                    echo "Use option 2 to install nginx in container."
+                    echo
+                    echo "Press Enter to continue..."
+                    read
+                fi
                 ;;
             4)
-                uninstall_nginx
+                generate_nginx_config
                 ;;
             5)
+                check_nginx_status
+                ;;
+            6)
+                uninstall_nginx
+                ;;
+            7)
                 return
                 ;;
             *)
@@ -3779,24 +3792,21 @@ if [ $# -eq 0 ]; then
                 read
                 ;;
             2)
-                manage_or_deploy_nginx
-                ;;
-            3)
                 create_new_deployment
                 ;;
-            4)
+            3)
                 manage_deployment_menu
                 ;;
-            5)
+            4)
                 manage_sync_cluster_menu
                 ;;
-            6)
+            5)
                 manage_nginx_menu
                 ;;
-            7)
+            6)
                 show_security_advisor_menu
                 ;;
-            8)
+            7)
                 echo "Goodbye!"
                 exit 0
                 ;;
