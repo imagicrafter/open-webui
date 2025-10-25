@@ -37,29 +37,40 @@ openwebui-chat-bc-quantabase-io  ghcr.io/imagicrafter/open-webui:main
 
 **Result:** ✅ Function pipes save successfully
 
-### Working Server #2: 159.65.34.41 (chat-test-03)
+### Working Server #2: 159.65.34.41 (chat-test-04.quantabase.io)
 
 **Code Configuration:**
-- Commit: 100c0aa25 (Sept 27, 2025 21:02 CDT)
-- Last git pull: Sept 28, 2025 02:02 UTC
-- **VERY OLD** - predates containerized nginx by ~3 weeks
+- Branch: `pre-nginx-container-test`
+- Commit: 649d823e8 (Oct 24, 2025 20:42 CDT)
+- Message: "feat: Add Let's Encrypt staging certificate instructions to avoid rate limits"
 - Repository: `/home/imagin8ncrafter/app/open-webui` (old location)
+- **LATEST on pre-nginx-container-test branch** ✅
 
 **nginx Configuration:**
-- nginx runs as **systemd service on HOST** (assumed)
-- nginx config at `/etc/nginx/sites-available/` (assumed)
+```bash
+$ systemctl status nginx
+● nginx.service - A high performance web server and a reverse proxy server
+  Active: active (running) since Sat 2025-10-25 00:57:44 UTC
+```
+- nginx runs as **systemd service on HOST** ✅ CONFIRMED
+- nginx config at `/etc/nginx/sites-available/chat-test-04.quantabase.io`
 
 **Open WebUI Configuration:**
 ```bash
 $ docker ps
-openwebui-chat-test-03  ghcr.io/imagicrafter/open-webui:main
+openwebui-chat-test-04-quantabase-io  ghcr.io/imagicrafter/open-webui:main
+Ports: 0.0.0.0:8081->8080/tcp
 ```
-- Container uses **PORT MAPPING** (assumed based on old code)
-- nginx proxies to `localhost:PORT`
+- Container uses **PORT MAPPING**: `-p 8081:8080` ✅ CONFIRMED
+- nginx proxies to `localhost:8081`
 
-**Result:** ✅ Function pipes save successfully
+**Result:** ✅ Function pipes save successfully ✅ **VALIDATED Oct 25, 2025**
 
-**Significance:** This server confirms that HOST nginx worked LONG before any of the Oct 23 changes (VAULT, image pinning, etc.)
+**Significance:**
+- Running LATEST pre-nginx-container-test code (includes all improvements)
+- Confirms HOST nginx + port mapping = working configuration
+- **Ready for Phase 2**: Add nginx container to test if it breaks
+- Clean baseline for nginx containerization testing
 
 ### Broken Deployments
 
@@ -134,24 +145,48 @@ Docker Image: ghcr.io/imagicrafter/open-webui:main
 
 ## Next Steps
 
-### Phase 1: Verify HOST nginx Works
-1. Deploy new server using `pre-nginx-container-test` branch
-2. Follow same process as 45.55.59.141 (HOST nginx)
-3. Verify function pipes save successfully
-4. Confirm this reproduces working behavior
+### Phase 1: Verify HOST nginx Works ✅ COMPLETED
 
-### Phase 2: Test Containerized nginx
-1. On same server, deploy nginx container
-2. Redeploy Open WebUI client with containerized nginx
-3. Test if pipe save breaks
-4. Confirm containerization is the breaking change
+Server: 159.65.34.41 (chat-test-04.quantabase.io)
+- ✅ Deployed using `pre-nginx-container-test` branch (commit 649d823e8)
+- ✅ HOST nginx configuration confirmed
+- ✅ Function pipes save successfully **VALIDATED Oct 25, 2025**
+- ✅ Baseline established for comparison
 
-### Phase 3: Fix Containerized nginx
+### Phase 2: Test Containerized nginx (READY TO START)
+
+**Objective:** Add nginx container to working server and confirm it breaks pipe saves
+
+**Server:** 159.65.34.41 (same server as Phase 1)
+
+**Steps:**
+1. Deploy nginx container on same server
+   - Use Docker bridge network: `openwebui-network`
+   - Deploy nginx container: `openwebui-nginx`
+
+2. Create new Open WebUI client with bridge network
+   - NO port mapping (container-to-container)
+   - Connect to `openwebui-network`
+   - nginx proxies to `container-name:8080`
+
+3. Test function pipe save
+   - Expected: Should FAIL with "Invalid HTTP request received"
+   - This confirms containerization is the breaking change
+
+4. Compare logs and network traffic
+   - Capture nginx → Open WebUI communication
+   - Compare headers between HOST nginx and containerized nginx
+   - Identify what changes in the request
+
+### Phase 3: Fix Containerized nginx (PENDING Phase 2 confirmation)
+
 If containerization confirmed as root cause:
 - Investigate nginx proxy configuration differences
 - Check HTTP headers passed to Open WebUI
 - Test different nginx buffer/proxy settings
 - Fix `/api/v1/utils/code/format` endpoint handling
+- Test HTTP/2 vs HTTP/1.1 handling
+- Verify WebSocket upgrade headers
 
 ## nginx Proxy Differences
 
