@@ -2477,8 +2477,16 @@ generate_nginx_config() {
             echo "   sudo nginx -t"
             echo
             echo "5. Generate SSL certificate:"
-            echo "   sudo certbot --nginx -d ${domain}"
+            echo "   For PRODUCTION (real certificate, rate limited):"
+            echo "     sudo certbot --nginx -d ${domain}"
+            echo
+            echo "   For STAGING/TESTING (test certificate, no rate limits):"
+            echo "     sudo certbot --nginx -d ${domain} --test-cert"
+            echo
             echo "   (Certbot will automatically modify nginx config for HTTPS)"
+            echo
+            echo "   NOTE: Staging certificates will show browser warnings but won't"
+            echo "         count against Let's Encrypt rate limits. Use for testing."
             echo
             echo "6. Reload nginx configuration:"
             echo "   sudo systemctl reload nginx"
