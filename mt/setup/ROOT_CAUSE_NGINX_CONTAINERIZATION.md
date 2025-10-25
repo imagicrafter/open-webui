@@ -11,7 +11,7 @@ The function pipe save failure is **NOT** caused by Docker image pinning.
 
 ## Evidence
 
-### Working Server (45.55.59.141)
+### Working Server #1: 45.55.59.141 (chat-bc.quantabase.io)
 
 **nginx Configuration:**
 ```bash
@@ -22,6 +22,11 @@ $ systemctl status nginx
 - nginx runs as **systemd service on HOST**
 - nginx config at `/etc/nginx/sites-available/`
 
+**Code Configuration:**
+- Commit: 351ebba70 or 17d9602c9
+- Last git pull: Oct 23, 2025 01:48 UTC
+- **Includes VAULT integration code!**
+
 **Open WebUI Configuration:**
 ```bash
 $ docker ps
@@ -31,6 +36,30 @@ openwebui-chat-bc-quantabase-io  ghcr.io/imagicrafter/open-webui:main
 - nginx proxies to `localhost:8081`
 
 **Result:** ✅ Function pipes save successfully
+
+### Working Server #2: 159.65.34.41 (chat-test-03)
+
+**Code Configuration:**
+- Commit: 100c0aa25 (Sept 27, 2025 21:02 CDT)
+- Last git pull: Sept 28, 2025 02:02 UTC
+- **VERY OLD** - predates containerized nginx by ~3 weeks
+- Repository: `/home/imagin8ncrafter/app/open-webui` (old location)
+
+**nginx Configuration:**
+- nginx runs as **systemd service on HOST** (assumed)
+- nginx config at `/etc/nginx/sites-available/` (assumed)
+
+**Open WebUI Configuration:**
+```bash
+$ docker ps
+openwebui-chat-test-03  ghcr.io/imagicrafter/open-webui:main
+```
+- Container uses **PORT MAPPING** (assumed based on old code)
+- nginx proxies to `localhost:PORT`
+
+**Result:** ✅ Function pipes save successfully
+
+**Significance:** This server confirms that HOST nginx worked LONG before any of the Oct 23 changes (VAULT, image pinning, etc.)
 
 ### Broken Deployments
 

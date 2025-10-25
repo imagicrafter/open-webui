@@ -188,7 +188,20 @@ Invalid HTTP request received.
 - Pattern: ALL deployments using nginx in Docker container
 
 ### Confirmed Working
-- **chat-test-01.quantabase.io** - Pipe saves successfully
+- **45.55.59.141** (chat-bc.quantabase.io) - HOST nginx + port mapping
+  - Commit: 351ebba70 or 17d9602c9 (Oct 23 01:48 UTC pull)
+  - Docker: `ghcr.io/imagicrafter/open-webui:main`
+  - nginx: systemd service on host
+  - Status: ✅ Function pipes save successfully
+
+- **159.65.34.41** (chat-test-03) - HOST nginx + port mapping
+  - Commit: 100c0aa25 (Sept 27, 2025 21:02 CDT)
+  - Docker: `ghcr.io/imagicrafter/open-webui:main`
+  - nginx: systemd service on host (assumed)
+  - Last git pull: Sept 28, 2025 02:02 UTC
+  - Status: ✅ Function pipes save successfully
+  - **Note:** Very old codebase, BEFORE containerized nginx was added
+
 - **Direct container access** - Container-to-container communication works (returns expected 401 unauthorized)
 
 ## Investigation Steps Completed
