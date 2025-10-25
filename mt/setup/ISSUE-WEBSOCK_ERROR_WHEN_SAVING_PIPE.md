@@ -1,8 +1,9 @@
 # Issue: Function Pipe Save Failure with Containerized nginx
 
-## Status: ROOT CAUSE IDENTIFIED
+## Status: FIX IMPLEMENTED - PENDING TESTING
 
-**Last Updated:** 2025-10-24 19:30 CDT
+**Last Updated:** 2025-10-24 19:35 CDT
+**Fix Commit:** 5e48152a6
 
 ## ROOT CAUSE ANALYSIS
 
@@ -74,6 +75,63 @@ ghcr.io/imagicrafter/open-webui:main
 ```
 
 This matches the ONLY code difference between working Oct 17 deployment and current main branch.
+
+## FIX IMPLEMENTED
+
+### Changes Made (Commit 5e48152a6)
+
+**File Modified:** `mt/start-template.sh` line 94
+
+**Change:**
+```bash
+# FROM (broken):
+ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27
+
+# TO (matching working server):
+ghcr.io/imagicrafter/open-webui:main
+```
+
+### Verification Performed
+
+Confirmed working server (45.55.59.141) is using:
+```bash
+$ ssh root@45.55.59.141 "docker ps --format '{{.Names}}\t{{.Image}}' | grep openwebui"
+openwebui-chat-bc-quantabase-io	ghcr.io/imagicrafter/open-webui:main
+```
+
+### Testing Required
+
+To validate this fix:
+
+1. **Deploy new client** on any server using updated main branch:
+   ```bash
+   git pull origin main
+   cd mt
+   ./client-manager.sh
+   # Choose option 1: Deploy New Client
+   ```
+
+2. **Test pipe save functionality:**
+   - Log into new deployment as admin
+   - Navigate to Admin Panel → Functions
+   - Create or edit a function pipe
+   - Click "Save"
+   - **Expected**: Pipe saves successfully without errors
+   - **Previous behavior**: "Invalid HTTP request received" error
+
+3. **Compare with working server:**
+   - Verify new deployment behaves like 45.55.59.141
+   - Confirm no JSON parsing errors
+   - Confirm no HTTP 400/422 errors in logs
+
+### Rollback Plan
+
+If this fix doesn't work, revert with:
+```bash
+git revert 5e48152a6
+```
+
+Then investigate other differences between working and broken deployments.
 
 ## Problem Summary
 
