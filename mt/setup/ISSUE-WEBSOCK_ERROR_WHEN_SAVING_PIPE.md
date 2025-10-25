@@ -9,12 +9,15 @@
 
 ### Key Finding: Docker Image Difference
 
-**Working Server (45.55.59.141 - Built Oct 17, 2025)**:
+**Working Server (45.55.59.141)**:
 ```bash
+Last git pull: October 23, 2025 at 01:48 UTC
+Code Base: Commit 351ebba70 or 17d9602c9 (includes VAULT integration)
 Docker Image: ghcr.io/imagicrafter/open-webui:main (unpinned :main tag)
-Code Base: Commit b5c267446 or nearby (Oct 17-18)
 Status: Function pipes SAVE SUCCESSFULLY
 ```
+
+**Critical Finding:** Working server HAS the VAULT integration code! This proves VAULT was NOT the problem.
 
 **Current Main Branch (Broken)**:
 ```bash
@@ -42,15 +45,17 @@ Status: Function pipes FAIL TO SAVE
    - Disabled WEBUI_SECRET_KEY generation
    - Did not resolve issue
 
-5. **Oct 23** (commit 68968fe72): VAULT rollback
+5. **Oct 23** (commit 68968fe72): VAULT rollback (UNNECESSARY!)
    - Complete rollback of VAULT integration
    - Reverted to pre-VAULT code state
    - Issue persisted
+   - **In hindsight**: Working server (45.55.59.141) HAS VAULT code and works fine!
 
-6. **Oct 23** (commit caffec801): Docker image pinning
+6. **Oct 23** (commit caffec801): Docker image pinning (THE ACTUAL PROBLEM!)
    - Pinned to Sept 28 version (sha256:bdf98b7bf21c...)
    - Commit message claimed this was "ACTUAL root cause"
    - **BUT**: Working server uses UNPINNED :main tag
+   - **This was the real culprit**: Pinning broke pipe saves
 
 ### The Paradox
 
@@ -132,6 +137,16 @@ git revert 5e48152a6
 ```
 
 Then investigate other differences between working and broken deployments.
+
+### Future: VAULT Code Restoration
+
+Since the working server (45.55.59.141) has VAULT integration code and works fine, the VAULT rollback (commit 68968fe72) was unnecessary. After confirming this fix works, consider:
+
+1. Restoring VAULT integration from commit 351ebba70
+2. The VAULT code itself was not the problem
+3. Docker image pinning was the actual issue
+
+VAULT feature branch: `origin/feat/vault-env-management`
 
 ## Problem Summary
 
