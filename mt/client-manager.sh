@@ -2939,10 +2939,29 @@ generate_nginx_config() {
 
                     if [[ "$setup_ssl" =~ ^[Yy]$ ]]; then
                         echo
+                        echo "Choose certificate type:"
+                        echo "  1) Production (real certificate, rate limited)"
+                        echo "  2) Staging (test certificate, no rate limits)"
+                        echo
+                        echo -n "Enter choice [1 or 2] (default: 1): "
+                        read cert_type
+
+                        # Default to production if empty
+                        cert_type=${cert_type:-1}
+
+                        if [[ "$cert_type" == "2" ]]; then
+                            CERT_TYPE_FLAG="--test-cert"
+                            echo "Using Let's Encrypt STAGING environment (test certificate)"
+                        else
+                            CERT_TYPE_FLAG=""
+                            echo "Using Let's Encrypt PRODUCTION environment (real certificate)"
+                        fi
+
+                        echo
                         echo "Running certbot to obtain SSL certificate..."
                         echo
 
-                        if sudo certbot certonly --webroot -w /opt/openwebui-nginx/webroot -d "${domain}" --non-interactive --agree-tos --email "admin@${domain}" 2>&1 | tee /tmp/certbot-output.log; then
+                        if sudo certbot certonly --webroot -w /opt/openwebui-nginx/webroot -d "${domain}" --non-interactive --agree-tos --email "admin@${domain}" ${CERT_TYPE_FLAG} 2>&1 | tee /tmp/certbot-output.log; then
                             echo
                             echo "✅ SSL certificate obtained successfully!"
                             echo
