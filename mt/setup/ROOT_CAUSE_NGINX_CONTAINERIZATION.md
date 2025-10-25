@@ -41,10 +41,14 @@ openwebui-chat-bc-quantabase-io  ghcr.io/imagicrafter/open-webui:main
 
 **Code Configuration:**
 - Branch: `pre-nginx-container-test`
-- Commit: 649d823e8 (Oct 24, 2025 20:42 CDT)
-- Message: "feat: Add Let's Encrypt staging certificate instructions to avoid rate limits"
+- **Base Commit:** d191e5345 (Oct 17, 2025 09:20 CDT) ⭐ **IMPORTANT BASELINE**
+  - Message: "feat: Enhance client registration and management scripts to support FQDN and port extraction"
+  - **Last commit BEFORE containerized nginx was added to main**
+  - Clean baseline for testing
+- Current Commit: 649d823e8 (Oct 24, 2025 20:42 CDT)
+  - Message: "feat: Add Let's Encrypt staging certificate instructions to avoid rate limits"
+  - Only adds staging cert instructions (doesn't change functionality)
 - Repository: `/home/imagin8ncrafter/app/open-webui` (old location)
-- **LATEST on pre-nginx-container-test branch** ✅
 
 **nginx Configuration:**
 ```bash
