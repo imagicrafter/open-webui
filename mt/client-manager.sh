@@ -38,9 +38,10 @@ show_main_menu() {
     echo "3) Manage Client Deployment"
     echo "4) Manage Sync Cluster"
     echo "5) Generate nginx Configuration"
-    echo "6) Exit"
+    echo "6) Manage nginx Installation"
+    echo "7) Exit"
     echo
-    echo -n "Please select an option (1-6): "
+    echo -n "Please select an option (1-7): "
 }
 
 # Detect container type (sync-node vs client)
@@ -2315,6 +2316,312 @@ manage_single_deployment() {
     done
 }
 
+# ═══════════════════════════════════════════════════════════════
+# nginx Management Functions
+# ═══════════════════════════════════════════════════════════════
+
+check_nginx_status() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║         nginx Status Check             ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+
+    # Check for HOST nginx
+    if command -v nginx &> /dev/null; then
+        echo "🔍 HOST nginx Installation:"
+        echo "  Version: $(nginx -v 2>&1 | cut -d/ -f2)"
+        echo
+        if systemctl is-active --quiet nginx; then
+            echo "  Status: ✅ RUNNING"
+        else
+            echo "  Status: ❌ STOPPED"
+        fi
+        echo
+        echo "  Systemd service status:"
+        systemctl status nginx --no-pager | head -10
+        echo
+    else
+        echo "❌ HOST nginx not installed"
+        echo
+    fi
+
+    # Check for containerized nginx
+    if docker ps -a --filter "name=openwebui-nginx" --format "{{.Names}}" | grep -q "openwebui-nginx"; then
+        echo "🔍 Containerized nginx:"
+        nginx_status=$(docker inspect -f '{{.State.Status}}' openwebui-nginx 2>/dev/null)
+        if [[ "$nginx_status" == "running" ]]; then
+            echo "  Status: ✅ RUNNING"
+        else
+            echo "  Status: ❌ STOPPED (state: $nginx_status)"
+        fi
+        echo "  Container: openwebui-nginx"
+        echo
+        docker ps -a --filter "name=openwebui-nginx" --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+        echo
+    else
+        echo "❌ Containerized nginx not deployed"
+        echo
+    fi
+
+    echo "Press Enter to continue..."
+    read
+}
+
+install_nginx_host() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║    Install nginx on HOST (Production)  ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+    echo "This will install nginx as a systemd service on the host."
+    echo "This matches the proven working configuration on 159.65.34.41."
+    echo
+    echo "⚠️  NOTE: This requires sudo privileges"
+    echo
+    echo -n "Continue with installation? (y/N): "
+    read confirm
+
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled."
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    echo
+    echo "📦 Installing nginx and certbot..."
+
+    # Update package list
+    sudo apt-get update
+
+    # Install nginx
+    if ! command -v nginx &> /dev/null; then
+        sudo apt-get install -y nginx
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install nginx"
+            echo "Press Enter to continue..."
+            read
+            return
+        fi
+    else
+        echo "✅ nginx already installed"
+    fi
+
+    # Install certbot for SSL
+    if ! command -v certbot &> /dev/null; then
+        sudo apt-get install -y certbot python3-certbot-nginx
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install certbot"
+            echo "Press Enter to continue..."
+            read
+            return
+        fi
+    else
+        echo "✅ certbot already installed"
+    fi
+
+    # Enable and start nginx
+    echo
+    echo "🚀 Enabling and starting nginx service..."
+    sudo systemctl enable nginx
+    sudo systemctl start nginx
+
+    # Check status
+    if systemctl is-active --quiet nginx; then
+        echo
+        echo "✅ nginx installed and running successfully!"
+        echo
+        echo "📋 Next steps:"
+        echo "  1. Create client deployment (option 2 from main menu)"
+        echo "  2. Generate nginx config (option 5 from main menu)"
+        echo "  3. Copy config: sudo cp /tmp/DOMAIN-nginx.conf /etc/nginx/sites-available/DOMAIN"
+        echo "  4. Enable site: sudo ln -s /etc/nginx/sites-available/DOMAIN /etc/nginx/sites-enabled/"
+        echo "  5. Test config: sudo nginx -t"
+        echo "  6. Generate SSL: sudo certbot --nginx -d DOMAIN"
+        echo "  7. Reload nginx: sudo systemctl reload nginx"
+    else
+        echo
+        echo "❌ nginx installed but failed to start. Check logs with:"
+        echo "   sudo systemctl status nginx"
+        echo "   sudo journalctl -u nginx -n 50"
+    fi
+
+    echo
+    echo "Press Enter to continue..."
+    read
+}
+
+install_nginx_container() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║   Install nginx in Container (TESTING) ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+    echo "⚠️  WARNING: EXPERIMENTAL - For testing only!"
+    echo
+    echo "This deployment mode has known issues:"
+    echo "  - Function pipe saves may fail"
+    echo "  - Still under validation and debugging"
+    echo
+    echo "Use HOST nginx installation (option 1) for production."
+    echo
+    echo -n "Continue with containerized nginx? (y/N): "
+    read confirm
+
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "Installation cancelled."
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    echo
+    echo "⚠️  Containerized nginx installation not yet implemented."
+    echo
+    echo "To enable this feature, we need to:"
+    echo "  1. Port nginx-container deployment scripts from main branch"
+    echo "  2. Test and validate configuration"
+    echo "  3. Fix function pipe save issues"
+    echo
+    echo "For now, please use HOST nginx installation (option 1)."
+    echo
+    echo "Press Enter to continue..."
+    read
+}
+
+uninstall_nginx() {
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║         Uninstall nginx                 ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+
+    # Detect what's installed
+    host_installed=false
+    container_installed=false
+
+    if command -v nginx &> /dev/null; then
+        host_installed=true
+    fi
+
+    if docker ps -a --filter "name=openwebui-nginx" --format "{{.Names}}" | grep -q "openwebui-nginx"; then
+        container_installed=true
+    fi
+
+    if [[ "$host_installed" == false ]] && [[ "$container_installed" == false ]]; then
+        echo "❌ No nginx installation found"
+        echo
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    # Show what will be removed
+    echo "The following will be removed:"
+    echo
+    if [[ "$host_installed" == true ]]; then
+        echo "  - HOST nginx (systemd service)"
+        echo "  - nginx configuration files in /etc/nginx/"
+        echo "  - certbot and SSL certificates"
+    fi
+    if [[ "$container_installed" == true ]]; then
+        echo "  - Containerized nginx (Docker container)"
+        echo "  - Container volumes and configs"
+    fi
+    echo
+    echo "⚠️  WARNING: This will stop all nginx services!"
+    echo
+    echo -n "Type 'REMOVE' to confirm removal: "
+    read confirm
+
+    if [[ "$confirm" != "REMOVE" ]]; then
+        echo "Uninstallation cancelled."
+        echo "Press Enter to continue..."
+        read
+        return
+    fi
+
+    echo
+
+    # Remove containerized nginx first
+    if [[ "$container_installed" == true ]]; then
+        echo "🗑️  Removing containerized nginx..."
+        docker stop openwebui-nginx 2>/dev/null
+        docker rm openwebui-nginx 2>/dev/null
+        echo "✅ Containerized nginx removed"
+        echo
+    fi
+
+    # Remove HOST nginx
+    if [[ "$host_installed" == true ]]; then
+        echo "🗑️  Removing HOST nginx..."
+        echo -n "Also remove SSL certificates? (y/N): "
+        read remove_ssl
+
+        sudo systemctl stop nginx
+        sudo systemctl disable nginx
+        sudo apt-get remove -y nginx nginx-common
+
+        if [[ "$remove_ssl" =~ ^[Yy]$ ]]; then
+            sudo apt-get remove -y certbot python3-certbot-nginx
+            echo "Note: SSL certificates in /etc/letsencrypt/ preserved."
+            echo "      Remove manually if desired: sudo rm -rf /etc/letsencrypt/"
+        fi
+
+        sudo apt-get autoremove -y
+
+        echo "✅ HOST nginx uninstalled"
+        echo
+        echo "Note: Configuration files in /etc/nginx/ preserved."
+        echo "      Remove manually if desired: sudo rm -rf /etc/nginx/"
+    fi
+
+    echo
+    echo "Press Enter to continue..."
+    read
+}
+
+manage_nginx_menu() {
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║        Manage nginx Installation        ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "1) Install nginx on HOST (Production - Recommended)"
+        echo "2) Install nginx in Container (Experimental)"
+        echo "3) Check nginx Status"
+        echo "4) Uninstall nginx"
+        echo "5) Back to Main Menu"
+        echo
+        echo -n "Please select an option (1-5): "
+        read choice
+
+        case "$choice" in
+            1)
+                install_nginx_host
+                ;;
+            2)
+                install_nginx_container
+                ;;
+            3)
+                check_nginx_status
+                ;;
+            4)
+                uninstall_nginx
+                ;;
+            5)
+                return
+                ;;
+            *)
+                echo "Invalid choice. Press Enter to continue..."
+                read
+                ;;
+        esac
+    done
+}
+
 generate_nginx_config() {
     clear
     echo "╔════════════════════════════════════════╗"
@@ -2619,6 +2926,9 @@ if [ $# -eq 0 ]; then
                 generate_nginx_config
                 ;;
             6)
+                manage_nginx_menu
+                ;;
+            7)
                 echo "Goodbye!"
                 exit 0
                 ;;
