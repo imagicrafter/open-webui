@@ -51,14 +51,29 @@ fi
 
 # Install certbot for SSL
 echo
-echo "📦 Installing certbot..."
+echo "📦 Installing certbot and nginx plugin..."
+
+# Check and install certbot binary
 if command -v certbot &> /dev/null; then
     echo "✅ certbot already installed ($(certbot --version 2>&1 | head -1))"
 else
-    if sudo apt-get install -y certbot python3-certbot-nginx; then
+    if sudo apt-get install -y certbot; then
         echo "✅ certbot installed successfully"
     else
         echo "❌ Failed to install certbot"
+        exit 1
+    fi
+fi
+
+# Check and install nginx plugin (independent check - critical!)
+if dpkg -l python3-certbot-nginx 2>/dev/null | grep -q "^ii"; then
+    echo "✅ python3-certbot-nginx already installed"
+else
+    echo "📦 Installing python3-certbot-nginx plugin..."
+    if sudo apt-get install -y python3-certbot-nginx; then
+        echo "✅ python3-certbot-nginx installed successfully"
+    else
+        echo "❌ Failed to install python3-certbot-nginx"
         exit 1
     fi
 fi

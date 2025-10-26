@@ -3361,16 +3361,34 @@ install_nginx_host() {
     fi
 
     # Install certbot for SSL
+    echo "📦 Installing certbot and nginx plugin..."
+
+    # Check and install certbot binary
     if ! command -v certbot &> /dev/null; then
-        sudo apt-get install -y certbot python3-certbot-nginx
+        sudo apt-get install -y certbot
         if [ $? -ne 0 ]; then
             echo "❌ Failed to install certbot"
             echo "Press Enter to continue..."
             read
             return
         fi
+        echo "✅ certbot installed"
     else
         echo "✅ certbot already installed"
+    fi
+
+    # Check and install nginx plugin (independent check - critical!)
+    if ! dpkg -l python3-certbot-nginx 2>/dev/null | grep -q "^ii"; then
+        sudo apt-get install -y python3-certbot-nginx
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to install python3-certbot-nginx plugin"
+            echo "Press Enter to continue..."
+            read
+            return
+        fi
+        echo "✅ python3-certbot-nginx installed"
+    else
+        echo "✅ python3-certbot-nginx already installed"
     fi
 
     # Configure firewall for nginx
