@@ -1922,9 +1922,10 @@ manage_single_deployment() {
         fi
 
         echo "10) Remove deployment (DANGER)"
-        echo "11) Return to deployment list"
+        echo "11) User Management"
+        echo "12) Return to deployment list"
         echo
-        echo -n "Select action (1-11): "
+        echo -n "Select action (1-12): "
         read action
 
         case "$action" in
@@ -2545,6 +2546,10 @@ manage_single_deployment() {
                 fi
                 ;;
             11)
+                # User Management
+                show_user_management "$container_name"
+                ;;
+            12)
                 # Return to deployment list
                 return
                 ;;
@@ -2554,6 +2559,101 @@ manage_single_deployment() {
                 ;;
         esac
     done
+}
+
+show_user_management() {
+    local container_name="$1"
+
+    clear
+    echo "╔════════════════════════════════════════╗"
+    echo "║          User Management               ║"
+    echo "╚════════════════════════════════════════╝"
+    echo
+    echo "Container: $container_name"
+    echo
+
+    cat << 'EOF'
+⚠️  IMPORTANT: These operations modify the database directly.
+   Only use when providing authorized client support.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📋 1. VIEW CURRENT USERS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Query all users (shows email, role, creation order):
+
+EOF
+    echo "docker exec $container_name python3 -c \"\\"
+    echo "import sqlite3"
+    echo "conn = sqlite3.connect('/app/backend/data/webui.db')"
+    echo "cursor = conn.cursor()"
+    echo "cursor.execute('SELECT email, role, created_at FROM user ORDER BY created_at')"
+    echo "for row in cursor.fetchall():"
+    echo "    print(f'{row[0]:30} {row[1]:10} {row[2]}')"
+    echo "conn.close()\""
+    echo
+
+    cat << 'EOF'
+📌 First user created = PRIMARY ADMIN (cannot be demoted by others)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔄 2. TRANSFER PRIMARY ADMIN STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+To make a different user the primary admin, swap their creation order.
+
+Example: Make user2@example.com the primary admin
+
+EOF
+    echo "docker exec $container_name python3 -c \"\\"
+    echo "import sqlite3"
+    echo "conn = sqlite3.connect('/app/backend/data/webui.db')"
+    echo "cursor = conn.cursor()"
+    echo "# Make user2 first (earlier timestamp)"
+    echo "cursor.execute('UPDATE user SET created_at = 1000000000 WHERE email = ?', ('user2@example.com',))"
+    echo "# Make user1 second (later timestamp)"
+    echo "cursor.execute('UPDATE user SET created_at = 2000000000 WHERE email = ?', ('user1@example.com',))"
+    echo "conn.commit()"
+    echo "conn.close()"
+    echo "print('✅ Primary admin transferred to user2@example.com')\""
+    echo
+
+    cat << 'EOF'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✅ 3. VERIFY CHANGES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+After making changes, verify the new order:
+
+EOF
+    echo "docker exec $container_name python3 -c \"\\"
+    echo "import sqlite3"
+    echo "conn = sqlite3.connect('/app/backend/data/webui.db')"
+    echo "cursor = conn.cursor()"
+    echo "cursor.execute('SELECT email, role, created_at FROM user ORDER BY created_at')"
+    echo "print('User Order (first = primary admin):')"
+    echo "for i, row in enumerate(cursor.fetchall(), 1):"
+    echo "    print(f'{i}. {row[0]:30} {row[1]:10}')"
+    echo "conn.close()\""
+    echo
+
+    cat << 'EOF'
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📝 NOTES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+• Primary admin can demote/delete other admins
+• Other admins CANNOT demote/delete primary admin
+• Changes take effect immediately (no restart needed)
+• Users must log out/in to see role changes
+• Always verify changes before ending support session
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EOF
+
+    echo
+    echo "Press Enter to return to deployment menu..."
+    read
 }
 
 generate_nginx_config() {
