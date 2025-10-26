@@ -2693,9 +2693,8 @@ generate_nginx_config() {
                 "$template_file" > "$config_file"
         else
             # For host nginx, use localhost:port
-            sed -e "s/{{CLIENT_NAME}}/${client_name}/g" \
-                -e "s/{{DOMAIN}}/${domain}/g" \
-                -e "s/{{PORT}}/${port}/g" \
+            sed -e "s/DOMAIN_PLACEHOLDER/${domain}/g" \
+                -e "s/PORT_PLACEHOLDER/${port}/g" \
                 "$template_file" > "$config_file"
         fi
 
