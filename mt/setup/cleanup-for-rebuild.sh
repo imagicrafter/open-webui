@@ -9,7 +9,9 @@
 #   - Stops and removes all Open WebUI containers
 #   - Removes all Open WebUI Docker volumes
 #   - Removes openwebui-network
-#   - Removes /opt/openwebui-nginx directory
+#   - Removes /opt/openwebui-nginx directory (containerized nginx)
+#   - Removes ALL HOST nginx site configurations
+#   - Optionally removes nginx package completely
 #   - Removes qbmgr user and home directory
 #   - Removes qbmgr sudoers file
 #
@@ -45,12 +47,14 @@ fi
 echo -e "${YELLOW}WARNING: This will remove:${NC}"
 echo "  - All Open WebUI containers and volumes"
 echo "  - qbmgr user and home directory"
-echo "  - /opt/openwebui-nginx directory"
+echo "  - /opt/openwebui-nginx directory (containerized nginx)"
+echo "  - ALL HOST nginx site configurations (/etc/nginx/sites-*/*)"
+echo "  - Optionally: nginx package and all configs"
 echo
 echo -e "${GREEN}This will preserve:${NC}"
 echo "  - Root SSH access"
 echo "  - Docker installation"
-echo "  - System packages"
+echo "  - System packages (unless nginx removal chosen)"
 echo "  - SSL certificates (unless you choose to remove them)"
 echo
 read -p "Continue? (y/N): " confirm
@@ -98,8 +102,8 @@ else
     echo "  Network doesn't exist"
 fi
 
-# Remove nginx config directory
-echo -e "${BLUE}[4/8] Removing /opt/openwebui-nginx...${NC}"
+# Remove nginx config directory (containerized nginx)
+echo -e "${BLUE}[4/10] Removing /opt/openwebui-nginx...${NC}"
 if [ -d "/opt/openwebui-nginx" ]; then
     rm -rf /opt/openwebui-nginx
     echo -e "${GREEN}✅ nginx config directory removed${NC}"
@@ -107,20 +111,73 @@ else
     echo "  Directory doesn't exist"
 fi
 
+# Remove ALL HOST nginx site configurations
+echo -e "${BLUE}[5/10] Removing ALL HOST nginx site configurations...${NC}"
+NGINX_CONFIGS_REMOVED=false
+if [ -d "/etc/nginx/sites-enabled" ]; then
+    ENABLED_COUNT=$(ls -A /etc/nginx/sites-enabled 2>/dev/null | wc -l)
+    if [ "$ENABLED_COUNT" -gt 0 ]; then
+        rm -rf /etc/nginx/sites-enabled/*
+        echo -e "${GREEN}✅ Removed $ENABLED_COUNT config(s) from sites-enabled${NC}"
+        NGINX_CONFIGS_REMOVED=true
+    else
+        echo "  No configs in sites-enabled"
+    fi
+else
+    echo "  /etc/nginx/sites-enabled doesn't exist"
+fi
+
+if [ -d "/etc/nginx/sites-available" ]; then
+    AVAILABLE_COUNT=$(ls -A /etc/nginx/sites-available 2>/dev/null | wc -l)
+    if [ "$AVAILABLE_COUNT" -gt 0 ]; then
+        rm -rf /etc/nginx/sites-available/*
+        echo -e "${GREEN}✅ Removed $AVAILABLE_COUNT config(s) from sites-available${NC}"
+        NGINX_CONFIGS_REMOVED=true
+    else
+        echo "  No configs in sites-available"
+    fi
+else
+    echo "  /etc/nginx/sites-available doesn't exist"
+fi
+
+if [ "$NGINX_CONFIGS_REMOVED" = false ]; then
+    echo -e "${GREEN}✅ No HOST nginx configs to remove${NC}"
+fi
+
+# Optional: Remove nginx package completely
+echo
+read -p "Also remove nginx package completely? (y/N): " remove_nginx
+if [[ "$remove_nginx" =~ ^[Yy]$ ]]; then
+    echo -e "${BLUE}[6/10] Removing nginx package...${NC}"
+    if command -v nginx &> /dev/null; then
+        systemctl stop nginx 2>/dev/null || true
+        systemctl disable nginx 2>/dev/null || true
+        apt-get purge -y nginx nginx-common nginx-core 2>/dev/null || true
+        apt-get autoremove -y 2>/dev/null || true
+        rm -rf /etc/nginx
+        echo -e "${GREEN}✅ nginx package and configs removed${NC}"
+    else
+        echo "  nginx not installed"
+    fi
+else
+    echo -e "${BLUE}[6/10] Preserving nginx package...${NC}"
+    echo -e "${GREEN}✅ nginx package preserved${NC}"
+fi
+
 # Optional: Remove SSL certificates
 echo
 read -p "Also remove SSL certificates from /etc/letsencrypt? (y/N): " remove_ssl
 if [[ "$remove_ssl" =~ ^[Yy]$ ]]; then
-    echo -e "${BLUE}[5/8] Removing SSL certificates...${NC}"
+    echo -e "${BLUE}[7/10] Removing SSL certificates...${NC}"
     rm -rf /etc/letsencrypt
     echo -e "${GREEN}✅ SSL certificates removed${NC}"
 else
-    echo -e "${BLUE}[5/8] Preserving SSL certificates...${NC}"
+    echo -e "${BLUE}[7/10] Preserving SSL certificates...${NC}"
     echo -e "${GREEN}✅ SSL certificates preserved${NC}"
 fi
 
 # Kill any processes owned by qbmgr
-echo -e "${BLUE}[6/8] Killing processes owned by qbmgr...${NC}"
+echo -e "${BLUE}[8/10] Killing processes owned by qbmgr...${NC}"
 if id "qbmgr" &>/dev/null; then
     QBMGR_PROCS=$(ps -u qbmgr -o pid= 2>/dev/null || true)
     if [ -n "$QBMGR_PROCS" ]; then
@@ -134,7 +191,7 @@ else
 fi
 
 # Remove qbmgr from sudoers
-echo -e "${BLUE}[7/8] Removing qbmgr from sudoers...${NC}"
+echo -e "${BLUE}[9/10] Removing qbmgr from sudoers...${NC}"
 if [ -f "/etc/sudoers.d/qbmgr" ]; then
     rm -f /etc/sudoers.d/qbmgr
     echo -e "${GREEN}✅ Sudoers file removed${NC}"
@@ -143,7 +200,7 @@ else
 fi
 
 # Delete qbmgr user and home directory atomically, then remove group
-echo -e "${BLUE}[8/8] Removing qbmgr user, home directory, and group...${NC}"
+echo -e "${BLUE}[10/10] Removing qbmgr user, home directory, and group...${NC}"
 if id "qbmgr" &>/dev/null; then
     # -r flag removes home directory and mail spool atomically
     userdel -r qbmgr 2>/dev/null || true

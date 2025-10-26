@@ -635,7 +635,9 @@ curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/set
 - All Open WebUI containers (openwebui-*)
 - All Open WebUI Docker volumes (openwebui-*)
 - Docker network (openwebui-network)
-- nginx configuration directory (/opt/openwebui-nginx)
+- nginx configuration directory (/opt/openwebui-nginx) - containerized nginx
+- **ALL HOST nginx site configurations** (/etc/nginx/sites-enabled/*, /etc/nginx/sites-available/*)
+- Optionally: nginx package completely (if you choose during cleanup)
 - qbmgr user, home directory, and group
 - qbmgr sudoers configuration
 
@@ -643,10 +645,22 @@ curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/set
 
 - Root SSH access and keys
 - Docker installation
-- System packages (certbot, jq, htop, etc.)
+- System packages (certbot, jq, htop, etc.) - unless nginx removal chosen
 - SSL certificates in /etc/letsencrypt (optional removal)
 - Network configuration and Cloudflare DNS
 - All other system configuration
+
+### Cleanup Process
+
+The script will prompt you for optional removals:
+1. **Remove nginx package completely?** (y/N)
+   - If yes: Removes nginx package, stops service, deletes /etc/nginx/
+   - If no: Keeps nginx installed but removes all site configs
+2. **Remove SSL certificates?** (y/N)
+   - If yes: Removes /etc/letsencrypt/ directory
+   - If no: Preserves SSL certificates for reuse
+
+**Recommended**: Answer "N" to both unless you want a completely fresh nginx and SSL setup.
 
 ### Example Workflow
 
