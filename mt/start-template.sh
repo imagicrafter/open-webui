@@ -39,6 +39,7 @@ if [[ "$PORT" != "N/A" ]]; then
 fi
 echo "Domain: ${DOMAIN}"
 echo "Environment: ${ENVIRONMENT}"
+echo "Docker Image: ghcr.io/imagicrafter/open-webui:${OPENWEBUI_IMAGE_TAG:-main}"
 echo "Redirect URI: ${REDIRECT_URI}"
 
 # Check if container already exists
@@ -90,10 +91,13 @@ if [[ -n "$BASE_URL" ]]; then
     docker_cmd="$docker_cmd -e WEBUI_BASE_URL=${BASE_URL}"
 fi
 
+# Use OPENWEBUI_IMAGE_TAG environment variable, default to 'main'
+IMAGE_TAG=${OPENWEBUI_IMAGE_TAG:-main}
+
 docker_cmd="$docker_cmd \
     -v ${VOLUME_NAME}:/app/backend/data \
     --restart unless-stopped \
-    ghcr.io/imagicrafter/open-webui:main"
+    ghcr.io/imagicrafter/open-webui:${IMAGE_TAG}"
 
 eval $docker_cmd
 

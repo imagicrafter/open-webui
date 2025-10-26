@@ -143,6 +143,20 @@ curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/set
 
 The quick-setup script automates server provisioning, user creation, security configuration, and deployment setup. For complete details on what gets installed, security hardening steps, and troubleshooting, see **[mt/setup/README.md](setup/README.md)**.
 
+**What's the difference between "test" and "production"?**
+
+| Server Type | Git Branch | Docker Image | When to Use |
+|-------------|------------|--------------|-------------|
+| `test` | `main` | `ghcr.io/imagicrafter/open-webui:main` | Development, testing new features |
+| `production` | `release` | `ghcr.io/imagicrafter/open-webui:release` | Client deployments, production use |
+
+The setup script automatically:
+- Clones the appropriate git branch
+- Sets `OPENWEBUI_IMAGE_TAG` environment variable in `~/.bashrc`
+- All deployments on that server will automatically use the correct Docker image
+
+**No manual configuration needed!** The deployment scripts (`start-template.sh`, `client-manager.sh`) read this variable automatically.
+
 ### Step 3: Login as qbmgr
 
 After setup completes:

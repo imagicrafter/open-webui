@@ -2293,6 +2293,9 @@ manage_single_deployment() {
                     # Calculate base URL from redirect URI
                     local new_base_url="${new_redirect_uri%/oauth/google/callback}"
 
+                    # Use OPENWEBUI_IMAGE_TAG environment variable, default to 'main'
+                    local IMAGE_TAG=${OPENWEBUI_IMAGE_TAG:-main}
+
                     docker run -d \
                         --name "$new_container_name" \
                         -p "${current_port}:8080" \
@@ -2310,7 +2313,7 @@ manage_single_deployment() {
                         -e CLIENT_NAME="$new_client_name" \
                         -v "${new_volume_name}:/app/backend/data" \
                         --restart unless-stopped \
-                        ghcr.io/imagicrafter/open-webui:main
+                        ghcr.io/imagicrafter/open-webui:${IMAGE_TAG}
 
                     if [ $? -eq 0 ]; then
                         echo "✅ Container recreated successfully!"

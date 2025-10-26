@@ -136,10 +136,35 @@ The script automatically:
 - ✅ Clones the Open WebUI repository to `/home/qbmgr/open-webui`
   - **Test servers**: Clones `main` branch (latest development code)
   - **Production servers**: Clones `release` branch (stable tested code)
+- ✅ **Sets OPENWEBUI_IMAGE_TAG environment variable** (automatic image selection)
+  - **Test servers**: `OPENWEBUI_IMAGE_TAG=main` (uses `:main` Docker images)
+  - **Production servers**: `OPENWEBUI_IMAGE_TAG=release` (uses `:release` Docker images)
+  - Configured in `~/.bashrc` for persistent use
 - ✅ Creates `/opt/openwebui-nginx` directory
 - ✅ Installs useful packages (certbot, jq, htop, tree, net-tools)
 - ✅ Configures auto-start of client-manager on SSH login
 - ✅ Tests Docker access
+
+### Docker Image Tag Configuration
+
+The setup script automatically configures your server to use the appropriate Docker image tag:
+
+| Server Type | OPENWEBUI_IMAGE_TAG | Docker Image | Updates |
+|-------------|---------------------|--------------|---------|
+| **Test** | `main` | `ghcr.io/imagicrafter/open-webui:main` | Latest development code |
+| **Production** | `release` | `ghcr.io/imagicrafter/open-webui:release` | Stable, tested releases only |
+
+**How it works:**
+- The `OPENWEBUI_IMAGE_TAG` environment variable is set in `~/.bashrc`
+- All deployment scripts (`start-template.sh`, `client-manager.sh`) automatically use this variable
+- No manual configuration needed - deployments use the correct image automatically
+- To check your current setting: `echo $OPENWEBUI_IMAGE_TAG`
+
+**Benefits:**
+- ✅ Test servers always get latest features for validation
+- ✅ Production servers only get stable, tested releases
+- ✅ No risk of accidentally deploying development code to production
+- ✅ Consistent configuration across all client deployments on the server
 
 ### User Configuration
 

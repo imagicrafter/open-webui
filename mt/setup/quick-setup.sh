@@ -173,9 +173,54 @@ chown -R "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.ssh"
 chmod 700 "/home/$DEPLOY_USER/.ssh"
 chmod 600 "/home/$DEPLOY_USER/.ssh/authorized_keys"
 
-# Step 4.5: Configure auto-start of client-manager on login
-echo -e "${BLUE}[4.5/8] Configuring client-manager auto-start...${NC}"
+# Step 4.5: Configure environment and auto-start
+echo -e "${BLUE}[4.5/8] Configuring environment and auto-start...${NC}"
+
+# Set Docker image tag based on server type
+case "$SERVER_TYPE" in
+    test|TEST|t|T)
+        DOCKER_IMAGE_TAG="main"
+        ;;
+    production|PRODUCTION|prod|PROD|p|P)
+        DOCKER_IMAGE_TAG="release"
+        ;;
+esac
+
+# Create .bashrc with environment variables
+cat > "/home/$DEPLOY_USER/.bashrc" << BASHRC_EOF
+# Open WebUI Deployment Environment
+# Server Type: ${SERVER_TYPE_DISPLAY}
+# Git Branch: ${GIT_BRANCH}
+
+# Set Docker image tag for deployments
+export OPENWEBUI_IMAGE_TAG="${DOCKER_IMAGE_TAG}"
+
+# Standard bashrc content
+if [ -f /etc/bashrc ]; then
+    . /etc/bashrc
+fi
+
+# User aliases and functions
+alias ll='ls -alh'
+alias dps='docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"'
+alias dlogs='docker logs -f'
+
+# Docker completion
+if [ -f /usr/share/bash-completion/completions/docker ]; then
+    . /usr/share/bash-completion/completions/docker
+fi
+BASHRC_EOF
+
+chown "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.bashrc"
+chmod 644 "/home/$DEPLOY_USER/.bashrc"
+
+# Create .bash_profile that sources .bashrc and starts client-manager
 cat > "/home/$DEPLOY_USER/.bash_profile" << 'BASH_PROFILE_EOF'
+# Source bashrc for environment setup
+if [ -f ~/.bashrc ]; then
+    . ~/.bashrc
+fi
+
 # Auto-start client-manager on interactive SSH login
 if [[ -n "$SSH_CONNECTION" ]] || [[ -n "$SSH_CLIENT" ]]; then
     # Check if this is an interactive shell
@@ -183,16 +228,11 @@ if [[ -n "$SSH_CONNECTION" ]] || [[ -n "$SSH_CLIENT" ]]; then
         cd ~/open-webui/mt 2>/dev/null && ./client-manager.sh
     fi
 fi
-
-# Source bashrc for environment setup
-if [ -f ~/.bashrc ]; then
-    . ~/.bashrc
-fi
 BASH_PROFILE_EOF
 
 chown "$DEPLOY_USER:$DEPLOY_USER" "/home/$DEPLOY_USER/.bash_profile"
 chmod 644 "/home/$DEPLOY_USER/.bash_profile"
-echo -e "${GREEN}✅ Auto-start configured${NC}"
+echo -e "${GREEN}✅ Environment configured (OPENWEBUI_IMAGE_TAG=${DOCKER_IMAGE_TAG})${NC}"
 
 # Step 5: Clone Open WebUI repository
 echo -e "${BLUE}[5/8] Cloning repository (branch: ${GIT_BRANCH})...${NC}"
@@ -243,6 +283,7 @@ cat > "/home/$DEPLOY_USER/WELCOME.txt" << EOF
 Server Configuration:
   - Server Type: ${SERVER_TYPE_DISPLAY}
   - Git Branch: ${GIT_BRANCH}
+  - Docker Image: ghcr.io/imagicrafter/open-webui:${DOCKER_IMAGE_TAG}
   - User: qbmgr (sudo + docker access)
   - Repository: ~/open-webui
   - nginx directory: /opt/openwebui-nginx
@@ -286,6 +327,7 @@ echo
 echo "Configuration:"
 echo -e "  ${GREEN}✅${NC} Server Type: ${SERVER_TYPE_DISPLAY}"
 echo -e "  ${GREEN}✅${NC} Git Branch: ${GIT_BRANCH}"
+echo -e "  ${GREEN}✅${NC} Docker Image: ghcr.io/imagicrafter/open-webui:${DOCKER_IMAGE_TAG}"
 echo -e "  ${GREEN}✅${NC} User: qbmgr"
 echo -e "  ${GREEN}✅${NC} Groups: sudo, docker"
 echo -e "  ${GREEN}✅${NC} Repository: /home/qbmgr/open-webui"
