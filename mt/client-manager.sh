@@ -2676,7 +2676,7 @@ generate_nginx_config() {
             config_file="/tmp/${domain}-nginx.conf"
             nginx_config_dest="/opt/openwebui-nginx/conf.d/${domain}.conf"
         else
-            template_file="${SCRIPT_DIR}/nginx-template.conf"
+            template_file="${SCRIPT_DIR}/nginx/templates/nginx-template-host.conf"
             config_file="/tmp/${domain}-nginx.conf"
             nginx_config_dest="/etc/nginx/sites-available/${domain}"
             ssl_ready=false
