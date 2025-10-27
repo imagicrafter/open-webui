@@ -2563,97 +2563,451 @@ manage_single_deployment() {
 
 show_user_management() {
     local container_name="$1"
+    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../setup/scripts"
 
-    clear
-    echo "╔════════════════════════════════════════╗"
-    echo "║          User Management               ║"
-    echo "╚════════════════════════════════════════╝"
-    echo
-    echo "Container: $container_name"
-    echo
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║          User Management               ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "Container: $container_name"
+        echo
+        echo "⚠️  Admin-only: Authorized client support use"
+        echo
+        echo "1) Promote Primary Admin"
+        echo "2) Promote Admin"
+        echo "3) Demote Admin"
+        echo "4) Approve User"
+        echo "5) Return to deployment menu"
+        echo
+        echo -n "Select action (1-5): "
+        read action
 
-    cat << 'EOF'
-⚠️  IMPORTANT: These operations modify the database directly.
-   Only use when providing authorized client support.
+        case "$action" in
+            1)
+                user_promote_primary_admin "$container_name" "$SCRIPT_DIR"
+                ;;
+            2)
+                user_promote_admin "$container_name" "$SCRIPT_DIR"
+                ;;
+            3)
+                user_demote_admin "$container_name" "$SCRIPT_DIR"
+                ;;
+            4)
+                user_approve "$container_name" "$SCRIPT_DIR"
+                ;;
+            5)
+                return
+                ;;
+            *)
+                echo "Invalid selection. Press Enter to continue..."
+                read
+                ;;
+        esac
+    done
+}
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📋 1. VIEW CURRENT USERS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+user_promote_primary_admin() {
+    local container_name="$1"
+    local script_dir="$2"
+    local page=0
+    local per_page=10
 
-Query all users (shows email, role, creation order):
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║      Promote Primary Admin             ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "Select admin to make primary admin:"
+        echo "(Primary admin is listed first)"
+        echo
 
-EOF
-    echo "docker exec $container_name python3 -c \"\\"
-    echo "import sqlite3"
-    echo "conn = sqlite3.connect('/app/backend/data/webui.db')"
-    echo "cursor = conn.cursor()"
-    echo "cursor.execute('SELECT email, role, created_at FROM user ORDER BY created_at')"
-    echo "for row in cursor.fetchall():"
-    echo "    print(f'{row[0]:30} {row[1]:10} {row[2]}')"
-    echo "conn.close()\""
-    echo
+        # Get admin users
+        local users_json=$(bash "$script_dir/user-list.sh" "$container_name" "admin" 2>/dev/null)
+        if [ -z "$users_json" ] || [ "$users_json" = "[]" ]; then
+            echo "No admin users found."
+            echo
+            echo "Press Enter to return..."
+            read
+            return
+        fi
 
-    cat << 'EOF'
-📌 First user created = PRIMARY ADMIN (cannot be demoted by others)
+        # Parse JSON and display paginated list
+        local emails=($(echo "$users_json" | jq -r '.[].email'))
+        local total=${#emails[@]}
+        local start=$((page * per_page))
+        local end=$((start + per_page))
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔄 2. TRANSFER PRIMARY ADMIN STATUS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        if [ $end -gt $total ]; then
+            end=$total
+        fi
 
-To make a different user the primary admin, swap their creation order.
+        local display_num=1
+        for ((i=start; i<end; i++)); do
+            local email="${emails[$i]}"
+            if [ $i -eq 0 ]; then
+                echo "$display_num) $email ⭐ PRIMARY"
+            else
+                echo "$display_num) $email"
+            fi
+            display_num=$((display_num + 1))
+        done
 
-Example: Make user2@example.com the primary admin
+        echo
+        if [ $end -lt $total ]; then
+            echo "N) Next page"
+        fi
+        if [ $page -gt 0 ]; then
+            echo "P) Previous page"
+        fi
+        echo "R) Return"
+        echo
+        echo -n "Selection: "
+        read selection
 
-EOF
-    echo "docker exec $container_name python3 -c \"\\"
-    echo "import sqlite3"
-    echo "conn = sqlite3.connect('/app/backend/data/webui.db')"
-    echo "cursor = conn.cursor()"
-    echo "# Make user2 first (earlier timestamp)"
-    echo "cursor.execute('UPDATE user SET created_at = 1000000000 WHERE email = ?', ('user2@example.com',))"
-    echo "# Make user1 second (later timestamp)"
-    echo "cursor.execute('UPDATE user SET created_at = 2000000000 WHERE email = ?', ('user1@example.com',))"
-    echo "conn.commit()"
-    echo "conn.close()"
-    echo "print('✅ Primary admin transferred to user2@example.com')\""
-    echo
+        case "$selection" in
+            [Nn])
+                if [ $end -lt $total ]; then
+                    page=$((page + 1))
+                fi
+                ;;
+            [Pp])
+                if [ $page -gt 0 ]; then
+                    page=$((page - 1))
+                fi
+                ;;
+            [Rr])
+                return
+                ;;
+            [0-9]|[0-9][0-9])
+                local idx=$((start + selection - 1))
+                if [ $selection -ge 1 ] && [ $selection -le $((end - start)) ]; then
+                    local selected_email="${emails[$idx]}"
+                    echo
+                    echo "Promoting $selected_email to primary admin..."
+                    if bash "$script_dir/user-promote-primary.sh" "$container_name" "$selected_email"; then
+                        echo
+                        echo "Press Enter to continue..."
+                        read
+                        return
+                    else
+                        echo "Failed to promote user."
+                        echo "Press Enter to continue..."
+                        read
+                    fi
+                else
+                    echo "Invalid selection."
+                    sleep 1
+                fi
+                ;;
+            *)
+                echo "Invalid input."
+                sleep 1
+                ;;
+        esac
+    done
+}
 
-    cat << 'EOF'
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ 3. VERIFY CHANGES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+user_promote_admin() {
+    local container_name="$1"
+    local script_dir="$2"
+    local page=0
+    local per_page=10
 
-After making changes, verify the new order:
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║           Promote Admin                ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "Select user to promote to admin:"
+        echo
 
-EOF
-    echo "docker exec $container_name python3 -c \"\\"
-    echo "import sqlite3"
-    echo "conn = sqlite3.connect('/app/backend/data/webui.db')"
-    echo "cursor = conn.cursor()"
-    echo "cursor.execute('SELECT email, role, created_at FROM user ORDER BY created_at')"
-    echo "print('User Order (first = primary admin):')"
-    echo "for i, row in enumerate(cursor.fetchall(), 1):"
-    echo "    print(f'{i}. {row[0]:30} {row[1]:10}')"
-    echo "conn.close()\""
-    echo
+        # Get non-admin users (regular users and approved pending)
+        local users_json=$(bash "$script_dir/user-list.sh" "$container_name" "user" 2>/dev/null)
+        if [ -z "$users_json" ] || [ "$users_json" = "[]" ]; then
+            echo "No non-admin users found."
+            echo
+            echo "Press Enter to return..."
+            read
+            return
+        fi
 
-    cat << 'EOF'
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-📝 NOTES
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # Parse JSON and display paginated list
+        local emails=($(echo "$users_json" | jq -r '.[].email'))
+        local total=${#emails[@]}
+        local start=$((page * per_page))
+        local end=$((start + per_page))
 
-• Primary admin can demote/delete other admins
-• Other admins CANNOT demote/delete primary admin
-• Changes take effect immediately (no restart needed)
-• Users must log out/in to see role changes
-• Always verify changes before ending support session
+        if [ $end -gt $total ]; then
+            end=$total
+        fi
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-EOF
+        local display_num=1
+        for ((i=start; i<end; i++)); do
+            echo "$display_num) ${emails[$i]}"
+            display_num=$((display_num + 1))
+        done
 
-    echo
-    echo "Press Enter to return to deployment menu..."
-    read
+        echo
+        if [ $end -lt $total ]; then
+            echo "N) Next page"
+        fi
+        if [ $page -gt 0 ]; then
+            echo "P) Previous page"
+        fi
+        echo "R) Return"
+        echo
+        echo -n "Selection: "
+        read selection
+
+        case "$selection" in
+            [Nn])
+                if [ $end -lt $total ]; then
+                    page=$((page + 1))
+                fi
+                ;;
+            [Pp])
+                if [ $page -gt 0 ]; then
+                    page=$((page - 1))
+                fi
+                ;;
+            [Rr])
+                return
+                ;;
+            [0-9]|[0-9][0-9])
+                local idx=$((start + selection - 1))
+                if [ $selection -ge 1 ] && [ $selection -le $((end - start)) ]; then
+                    local selected_email="${emails[$idx]}"
+                    echo
+                    echo "Promoting $selected_email to admin..."
+                    if bash "$script_dir/user-promote-admin.sh" "$container_name" "$selected_email"; then
+                        echo
+                        echo "Press Enter to continue..."
+                        read
+                        return
+                    else
+                        echo "Failed to promote user."
+                        echo "Press Enter to continue..."
+                        read
+                    fi
+                else
+                    echo "Invalid selection."
+                    sleep 1
+                fi
+                ;;
+            *)
+                echo "Invalid input."
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+user_demote_admin() {
+    local container_name="$1"
+    local script_dir="$2"
+    local page=0
+    local per_page=10
+
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║           Demote Admin                 ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "Select admin to demote to user:"
+        echo "(Primary admin cannot be demoted)"
+        echo
+
+        # Get admin users
+        local users_json=$(bash "$script_dir/user-list.sh" "$container_name" "admin" 2>/dev/null)
+        if [ -z "$users_json" ] || [ "$users_json" = "[]" ]; then
+            echo "No admin users found."
+            echo
+            echo "Press Enter to return..."
+            read
+            return
+        fi
+
+        # Parse JSON and filter out primary (first admin)
+        local all_emails=($(echo "$users_json" | jq -r '.[].email'))
+        local emails=("${all_emails[@]:1}")  # Skip first (primary)
+
+        if [ ${#emails[@]} -eq 0 ]; then
+            echo "No secondary admins found."
+            echo "(Primary admin cannot be demoted)"
+            echo
+            echo "Press Enter to return..."
+            read
+            return
+        fi
+
+        local total=${#emails[@]}
+        local start=$((page * per_page))
+        local end=$((start + per_page))
+
+        if [ $end -gt $total ]; then
+            end=$total
+        fi
+
+        local display_num=1
+        for ((i=start; i<end; i++)); do
+            echo "$display_num) ${emails[$i]}"
+            display_num=$((display_num + 1))
+        done
+
+        echo
+        if [ $end -lt $total ]; then
+            echo "N) Next page"
+        fi
+        if [ $page -gt 0 ]; then
+            echo "P) Previous page"
+        fi
+        echo "R) Return"
+        echo
+        echo -n "Selection: "
+        read selection
+
+        case "$selection" in
+            [Nn])
+                if [ $end -lt $total ]; then
+                    page=$((page + 1))
+                fi
+                ;;
+            [Pp])
+                if [ $page -gt 0 ]; then
+                    page=$((page - 1))
+                fi
+                ;;
+            [Rr])
+                return
+                ;;
+            [0-9]|[0-9][0-9])
+                local idx=$((start + selection - 1))
+                if [ $selection -ge 1 ] && [ $selection -le $((end - start)) ]; then
+                    local selected_email="${emails[$idx]}"
+                    echo
+                    echo "Demoting $selected_email to user..."
+                    if bash "$script_dir/user-demote-admin.sh" "$container_name" "$selected_email"; then
+                        echo
+                        echo "Press Enter to continue..."
+                        read
+                        return
+                    else
+                        echo "Failed to demote user."
+                        echo "Press Enter to continue..."
+                        read
+                    fi
+                else
+                    echo "Invalid selection."
+                    sleep 1
+                fi
+                ;;
+            *)
+                echo "Invalid input."
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+user_approve() {
+    local container_name="$1"
+    local script_dir="$2"
+    local page=0
+    local per_page=10
+
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║           Approve User                 ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "Select pending user to approve:"
+        echo
+
+        # Get pending users
+        local users_json=$(bash "$script_dir/user-list.sh" "$container_name" "pending" 2>/dev/null)
+        if [ -z "$users_json" ] || [ "$users_json" = "[]" ]; then
+            echo "No pending users found."
+            echo
+            echo "Press Enter to return..."
+            read
+            return
+        fi
+
+        # Parse JSON and display paginated list
+        local emails=($(echo "$users_json" | jq -r '.[].email'))
+        local total=${#emails[@]}
+        local start=$((page * per_page))
+        local end=$((start + per_page))
+
+        if [ $end -gt $total ]; then
+            end=$total
+        fi
+
+        local display_num=1
+        for ((i=start; i<end; i++)); do
+            echo "$display_num) ${emails[$i]}"
+            display_num=$((display_num + 1))
+        done
+
+        echo
+        if [ $end -lt $total ]; then
+            echo "N) Next page"
+        fi
+        if [ $page -gt 0 ]; then
+            echo "P) Previous page"
+        fi
+        echo "R) Return"
+        echo
+        echo -n "Selection: "
+        read selection
+
+        case "$selection" in
+            [Nn])
+                if [ $end -lt $total ]; then
+                    page=$((page + 1))
+                fi
+                ;;
+            [Pp])
+                if [ $page -gt 0 ]; then
+                    page=$((page - 1))
+                fi
+                ;;
+            [Rr])
+                return
+                ;;
+            [0-9]|[0-9][0-9])
+                local idx=$((start + selection - 1))
+                if [ $selection -ge 1 ] && [ $selection -le $((end - start)) ]; then
+                    local selected_email="${emails[$idx]}"
+                    echo
+                    echo "Approving $selected_email..."
+                    if bash "$script_dir/user-approve.sh" "$container_name" "$selected_email"; then
+                        echo
+                        echo "Press Enter to continue..."
+                        read
+                        return
+                    else
+                        echo "Failed to approve user."
+                        echo "Press Enter to continue..."
+                        read
+                    fi
+                else
+                    echo "Invalid selection."
+                    sleep 1
+                fi
+                ;;
+            *)
+                echo "Invalid input."
+                sleep 1
+                ;;
+        esac
+    done
 }
 
 generate_nginx_config() {
