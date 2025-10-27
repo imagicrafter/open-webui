@@ -11,35 +11,34 @@ if [ -z "$CONTAINER_NAME" ]; then
     exit 1
 fi
 
-# Build SQL query based on filter
-case "$FILTER" in
-    admin)
-        WHERE_CLAUSE="WHERE role = 'admin'"
-        ;;
-    non-admin)
-        WHERE_CLAUSE="WHERE role = 'user' OR role = 'pending'"
-        ;;
-    pending)
-        WHERE_CLAUSE="WHERE role = 'pending'"
-        ;;
-    user)
-        WHERE_CLAUSE="WHERE role = 'user'"
-        ;;
-    *)
-        WHERE_CLAUSE=""
-        ;;
-esac
-
 # Query database and return JSON
+# Pass filter to Python to avoid quote escaping issues
 docker exec "$CONTAINER_NAME" python3 -c "
 import sqlite3
 import json
+import sys
 
 conn = sqlite3.connect('/app/backend/data/webui.db')
 cursor = conn.cursor()
 
-query = 'SELECT id, email, role, created_at, name FROM user $WHERE_CLAUSE ORDER BY created_at'
-cursor.execute(query)
+# Build query based on filter
+filter_type = '$FILTER'
+
+if filter_type == 'admin':
+    query = 'SELECT id, email, role, created_at, name FROM user WHERE role = ? ORDER BY created_at'
+    cursor.execute(query, ('admin',))
+elif filter_type == 'user':
+    query = 'SELECT id, email, role, created_at, name FROM user WHERE role = ? ORDER BY created_at'
+    cursor.execute(query, ('user',))
+elif filter_type == 'pending':
+    query = 'SELECT id, email, role, created_at, name FROM user WHERE role = ? ORDER BY created_at'
+    cursor.execute(query, ('pending',))
+elif filter_type == 'non-admin':
+    query = 'SELECT id, email, role, created_at, name FROM user WHERE role IN (?, ?) ORDER BY created_at'
+    cursor.execute(query, ('user', 'pending'))
+else:
+    query = 'SELECT id, email, role, created_at, name FROM user ORDER BY created_at'
+    cursor.execute(query)
 
 users = []
 for row in cursor.fetchall():
