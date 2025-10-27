@@ -2579,9 +2579,10 @@ show_user_management() {
         echo "2) Promote Admin"
         echo "3) Demote Admin"
         echo "4) Approve User"
-        echo "5) Return to deployment menu"
+        echo "5) Delete User"
+        echo "6) Return to deployment menu"
         echo
-        echo -n "Select action (1-5): "
+        echo -n "Select action (1-6): "
         read action
 
         case "$action" in
@@ -2598,6 +2599,9 @@ show_user_management() {
                 user_approve "$container_name" "$SCRIPT_DIR"
                 ;;
             5)
+                user_delete "$container_name" "$SCRIPT_DIR"
+                ;;
+            6)
                 return
                 ;;
             *)
@@ -2994,6 +2998,184 @@ user_approve() {
                         return
                     else
                         echo "Failed to approve user."
+                        echo "Press Enter to continue..."
+                        read
+                    fi
+                else
+                    echo "Invalid selection."
+                    sleep 1
+                fi
+                ;;
+            *)
+                echo "Invalid input."
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+user_delete() {
+    local container_name="$1"
+    local script_dir="$2"
+    local page=0
+    local per_page=10
+
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║           Delete User                  ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "⚠️  WARNING: This action is PERMANENT and will delete:"
+        echo "   - User account and profile"
+        echo "   - All chat history"
+        echo "   - All files and folders"
+        echo "   - All memories and feedbacks"
+        echo "   - OAuth sessions"
+        echo "   - Group memberships"
+        echo
+        echo "Select user to delete:"
+        echo "(Primary admin cannot be deleted)"
+        echo
+
+        # Get all users except primary admin
+        local users_json=$(bash "$script_dir/user-list.sh" "$container_name" "all" 2>/dev/null)
+        if [ -z "$users_json" ] || [ "$users_json" = "[]" ]; then
+            echo "No users found."
+            echo
+            echo "Press Enter to return..."
+            read
+            return
+        fi
+
+        # Parse JSON and find primary admin
+        local all_users=$(echo "$users_json" | jq -r 'sort_by(.created_at) | .[].email' 2>/dev/null)
+        local all_roles=$(echo "$users_json" | jq -r 'sort_by(.created_at) | .[].role' 2>/dev/null)
+        local all_created=$(echo "$users_json" | jq -r 'sort_by(.created_at) | .[].created_at' 2>/dev/null)
+
+        # Convert to arrays
+        local emails=($(echo "$all_users"))
+        local roles=($(echo "$all_roles"))
+        local created_ats=($(echo "$all_created"))
+
+        # Find primary admin (earliest admin)
+        local primary_admin_email=""
+        local min_admin_timestamp=""
+        for i in "${!emails[@]}"; do
+            if [ "${roles[$i]}" = "admin" ]; then
+                if [ -z "$min_admin_timestamp" ] || [ "${created_ats[$i]}" -lt "$min_admin_timestamp" ]; then
+                    min_admin_timestamp="${created_ats[$i]}"
+                    primary_admin_email="${emails[$i]}"
+                fi
+            fi
+        done
+
+        # Build list of deleteable users (excluding primary admin)
+        local deleteable_emails=()
+        local deleteable_roles=()
+        for i in "${!emails[@]}"; do
+            if [ "${emails[$i]}" != "$primary_admin_email" ]; then
+                deleteable_emails+=("${emails[$i]}")
+                deleteable_roles+=("${roles[$i]}")
+            fi
+        done
+
+        if [ ${#deleteable_emails[@]} -eq 0 ]; then
+            echo "No users available to delete (only primary admin exists)."
+            echo
+            echo "Press Enter to return..."
+            read
+            return
+        fi
+
+        # Pagination
+        local total=${#deleteable_emails[@]}
+        local start=$((page * per_page))
+        local end=$((start + per_page))
+
+        if [ $end -gt $total ]; then
+            end=$total
+        fi
+
+        # Display page
+        local display_index=1
+        for i in $(seq $start $((end - 1))); do
+            echo "$display_index) ${deleteable_emails[$i]} (${deleteable_roles[$i]})"
+            ((display_index++))
+        done
+
+        echo
+        if [ $total -gt $per_page ]; then
+            echo "Showing $(($start + 1))-$end of $total"
+            if [ $page -gt 0 ]; then
+                echo "p) Previous page"
+            fi
+            if [ $end -lt $total ]; then
+                echo "n) Next page"
+            fi
+        fi
+        echo "b) Back to User Management"
+        echo
+        echo -n "Select user number to delete: "
+        read selection
+
+        case "$selection" in
+            b|B)
+                return
+                ;;
+            n|N)
+                if [ $end -lt $total ]; then
+                    ((page++))
+                else
+                    echo "Already on last page."
+                    sleep 1
+                fi
+                ;;
+            p|P)
+                if [ $page -gt 0 ]; then
+                    ((page--))
+                else
+                    echo "Already on first page."
+                    sleep 1
+                fi
+                ;;
+            [0-9]*)
+                if [ "$selection" -ge 1 ] && [ "$selection" -le $((end - start)) ]; then
+                    local actual_index=$((start + selection - 1))
+                    local selected_email="${deleteable_emails[$actual_index]}"
+                    local selected_role="${deleteable_roles[$actual_index]}"
+
+                    # Confirmation prompt
+                    echo
+                    echo "═══════════════════════════════════════"
+                    echo "⚠️  FINAL CONFIRMATION ⚠️"
+                    echo "═══════════════════════════════════════"
+                    echo "You are about to PERMANENTLY DELETE:"
+                    echo "  Email: $selected_email"
+                    echo "  Role: $selected_role"
+                    echo
+                    echo "This will remove ALL data associated with this user."
+                    echo
+                    echo -n "Type the user's email to confirm deletion: "
+                    read confirm_email
+
+                    if [ "$confirm_email" = "$selected_email" ]; then
+                        echo
+                        echo "Deleting user..."
+                        if bash "$script_dir/user-delete.sh" "$container_name" "$selected_email"; then
+                            echo
+                            echo "Press Enter to continue..."
+                            read
+                            return
+                        else
+                            echo
+                            echo "Failed to delete user."
+                            echo "Press Enter to continue..."
+                            read
+                        fi
+                    else
+                        echo
+                        echo "Email did not match. Deletion cancelled."
                         echo "Press Enter to continue..."
                         read
                     fi
