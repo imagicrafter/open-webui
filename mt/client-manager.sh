@@ -2563,7 +2563,7 @@ manage_single_deployment() {
 
 show_user_management() {
     local container_name="$1"
-    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../setup/scripts"
+    local SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/setup/scripts"
 
     while true; do
         clear
