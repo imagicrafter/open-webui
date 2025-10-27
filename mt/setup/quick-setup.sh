@@ -272,12 +272,11 @@ echo -e "${BLUE}[7/8] Installing packages (certbot, jq, htop, tree)...${NC}"
 echo -e "${YELLOW}Updating package lists...${NC}"
 apt-get update || true
 
+# Brief pause to ensure apt-get update fully releases locks
+sleep 1
+
 echo -e "${YELLOW}Installing packages (this may take 10-30 seconds)...${NC}"
-if ! DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools 2>&1 | grep -v "^Selecting\|^Preparing\|^Unpacking\|^Setting up\|^Processing"; then
-    echo -e "${RED}First install attempt had issues, retrying...${NC}"
-    sleep 2
-    DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools
-fi
+DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools
 echo -e "${GREEN}✅ Packages installed${NC}"
 
 # Step 8: Create welcome message
