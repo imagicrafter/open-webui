@@ -42,6 +42,15 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Wait for any existing apt operations to complete
+echo -e "${YELLOW}Checking for running package operations...${NC}"
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
+    echo -e "${YELLOW}⏳ Waiting for existing apt/dpkg operations to complete...${NC}"
+    sleep 5
+done
+echo -e "${GREEN}✅ Package system ready${NC}"
+echo
+
 # Prompt for server type if not provided
 if [ -z "$SERVER_TYPE" ]; then
     # Check if running interactively (not via curl|bash)
@@ -261,7 +270,7 @@ echo -e "${GREEN}✅ Created /opt/openwebui-nginx${NC}"
 # Step 7: Install packages
 echo -e "${BLUE}[7/8] Installing packages (certbot, jq, htop, tree)...${NC}"
 echo -e "${YELLOW}Updating package lists...${NC}"
-apt-get update -qq || apt-get update
+apt-get update -qq || true
 
 echo -e "${YELLOW}Installing packages (this may take 10-30 seconds)...${NC}"
 if ! DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools 2>&1 | grep -v "^Selecting\|^Preparing\|^Unpacking\|^Setting up\|^Processing"; then
