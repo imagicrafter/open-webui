@@ -42,12 +42,38 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
+# Function to wait for apt locks to be released
+wait_for_apt_locks() {
+    local timeout=${1:-300}  # Default 5 minute timeout
+    local elapsed=0
+
+    while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1 || fuser /var/lib/apt/lists/lock >/dev/null 2>&1; do
+        if [ $elapsed -ge $timeout ]; then
+            echo -e "${RED}⚠️  Timeout waiting for apt locks after ${timeout}s${NC}"
+            return 1
+        fi
+
+        if [ $elapsed -eq 0 ]; then
+            echo -e "${YELLOW}⏳ Waiting for apt/dpkg operations to complete...${NC}"
+        fi
+
+        sleep 5
+        elapsed=$((elapsed + 5))
+
+        # Show progress every 30 seconds
+        if [ $((elapsed % 30)) -eq 0 ]; then
+            echo -e "${YELLOW}⏳ Still waiting... (${elapsed}s elapsed)${NC}"
+        fi
+    done
+
+    # Extra pause to ensure locks are fully released
+    sleep 2
+    return 0
+}
+
 # Wait for any existing apt operations to complete
 echo -e "${YELLOW}Checking for running package operations...${NC}"
-while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 || fuser /var/lib/dpkg/lock >/dev/null 2>&1; do
-    echo -e "${YELLOW}⏳ Waiting for existing apt/dpkg operations to complete...${NC}"
-    sleep 5
-done
+wait_for_apt_locks
 echo -e "${GREEN}✅ Package system ready${NC}"
 echo
 
@@ -272,8 +298,10 @@ echo -e "${BLUE}[7/8] Installing packages (certbot, jq, htop, tree)...${NC}"
 echo -e "${YELLOW}Updating package lists...${NC}"
 apt-get update || true
 
-# Brief pause to ensure apt-get update fully releases locks
-sleep 1
+# Wait for any background processes triggered by apt-get update (like unattended-upgrades)
+echo -e "${YELLOW}Waiting for package system to be ready...${NC}"
+wait_for_apt_locks
+echo -e "${GREEN}✅ Package locks released${NC}"
 
 echo -e "${YELLOW}Installing packages (this may take 10-30 seconds)...${NC}"
 DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools
