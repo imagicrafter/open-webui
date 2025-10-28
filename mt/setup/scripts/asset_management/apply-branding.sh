@@ -48,9 +48,10 @@ generate_logo_variants() {
     echo -e "${BLUE}Note: Using high-quality Lanczos resampling filter${NC}"
     echo
 
-    # Generate favicon.png (32x32) - preserve aspect ratio with high-quality filter
-    if convert "$source_file" -filter Lanczos -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon.png" 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} favicon.png (32x32)"
+    # Generate favicon.png (96x96) - larger size for UI elements that scale it
+    # Chat avatars and other UI elements use this at 36-40px, so 96x96 provides sharp rendering
+    if convert "$source_file" -filter Lanczos -resize 96x96 -background none -gravity center -extent 96x96 "$temp_dir/favicon.png" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} favicon.png (96x96, optimized for UI scaling)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon.png"
         return 1
@@ -65,8 +66,8 @@ generate_logo_variants() {
     fi
 
     # Generate favicon-dark.png (use same as favicon for now) - preserve aspect ratio with high-quality filter
-    if convert "$source_file" -filter Lanczos -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon-dark.png" 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} favicon-dark.png (32x32)"
+    if convert "$source_file" -filter Lanczos -resize 96x96 -background none -gravity center -extent 96x96 "$temp_dir/favicon-dark.png" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} favicon-dark.png (96x96, optimized for UI scaling)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon-dark.png"
         return 1
@@ -134,16 +135,17 @@ generate_logo_variants() {
 
     # Generate favicon.svg (convert PNG to SVG outline)
     # Note: This creates a simple SVG embedding the PNG - not a true vector conversion
-    if convert "$source_file" -resize 32x32 -background none -flatten "$temp_dir/favicon-temp.png" 2>/dev/null; then
+    # Using 96x96 for better quality when scaled by UI
+    if convert "$source_file" -filter Lanczos -resize 96x96 -background none -flatten "$temp_dir/favicon-temp.png" 2>/dev/null; then
         # Create simple SVG wrapper
         local img_data=$(base64 -w 0 "$temp_dir/favicon-temp.png" 2>/dev/null || base64 "$temp_dir/favicon-temp.png")
         cat > "$temp_dir/favicon.svg" <<EOF
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">
-  <image width="32" height="32" xlink:href="data:image/png;base64,$img_data"/>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="96" height="96" viewBox="0 0 96 96">
+  <image width="96" height="96" xlink:href="data:image/png;base64,$img_data"/>
 </svg>
 EOF
         rm -f "$temp_dir/favicon-temp.png"
-        echo -e "${GREEN}✓${NC} favicon.svg (SVG wrapper)"
+        echo -e "${GREEN}✓${NC} favicon.svg (SVG wrapper, 96x96)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon.svg"
         return 1
