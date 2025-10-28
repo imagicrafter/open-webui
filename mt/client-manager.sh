@@ -1921,11 +1921,12 @@ manage_single_deployment() {
             echo "9) Migrate to Supabase/PostgreSQL"
         fi
 
-        echo "10) Remove deployment (DANGER)"
-        echo "11) User Management"
-        echo "12) Return to deployment list"
+        echo "10) User Management"
+        echo "11) Asset Management"
+        echo "12) Remove deployment (DANGER)"
+        echo "13) Return to deployment list"
         echo
-        echo -n "Select action (1-12): "
+        echo -n "Select action (1-13): "
         read action
 
         case "$action" in
@@ -2526,6 +2527,14 @@ manage_single_deployment() {
                 read
                 ;;
             10)
+                # User Management
+                show_user_management "$container_name"
+                ;;
+            11)
+                # Asset Management
+                show_asset_management "$container_name" "$fqdn"
+                ;;
+            12)
                 # Remove deployment
                 echo "⚠️  WARNING: This will permanently remove the deployment!"
                 echo "Data volume will be preserved but container will be deleted."
@@ -2545,11 +2554,7 @@ manage_single_deployment() {
                     read
                 fi
                 ;;
-            11)
-                # User Management
-                show_user_management "$container_name"
-                ;;
-            12)
+            13)
                 # Return to deployment list
                 return
                 ;;
@@ -3187,6 +3192,273 @@ user_delete() {
             *)
                 echo "Invalid input."
                 sleep 1
+                ;;
+        esac
+    done
+}
+
+show_asset_management() {
+    local container_name="$1"
+    local fqdn="$2"
+    local ASSET_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/setup/scripts/asset_management"
+
+    while true; do
+        clear
+        echo "╔════════════════════════════════════════╗"
+        echo "║          Asset Management              ║"
+        echo "╚════════════════════════════════════════╝"
+        echo
+        echo "Container: $container_name"
+        if [[ -n "$fqdn" ]]; then
+            echo "FQDN: $fqdn"
+        fi
+        echo
+        # Get current WEBUI_NAME
+        local current_webui_name=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_NAME=" | cut -d'=' -f2- 2>/dev/null || echo "Not set")
+        echo "Current Name: $current_webui_name"
+        echo
+        echo "⚠️  Logo changes: Applied immediately (no restart needed)"
+        echo "⚠️  Name changes: Require container recreation (preserves all data)"
+        echo
+        echo "1) Apply logo branding from URL"
+        echo "2) Use default QuantaBase logo"
+        echo "3) Update deployment name (WEBUI_NAME)"
+        echo "4) Return to deployment menu"
+        echo
+        echo -n "Select action (1-4): "
+        read action
+
+        case "$action" in
+            1)
+                # Apply branding from URL
+                clear
+                echo "╔════════════════════════════════════════╗"
+                echo "║       Apply Branding from URL          ║"
+                echo "╚════════════════════════════════════════╝"
+                echo
+                echo "Logo URL format:"
+                echo "  https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/<domain>_logo.png"
+                echo
+                echo "Example:"
+                echo "  Domain: chat.example.com"
+                echo "  URL: https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/chat_example_com_logo.png"
+                echo
+
+                # Auto-generate URL from FQDN if available
+                if [[ -n "$fqdn" ]]; then
+                    # Convert dots to underscores for the URL
+                    local suggested_filename=$(echo "$fqdn" | tr '.' '_')
+                    local suggested_url="https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/${suggested_filename}_logo.png"
+                    echo "Suggested URL based on FQDN:"
+                    echo "  $suggested_url"
+                    echo
+                    echo "Press Enter to use this URL, or type a different URL:"
+                    echo -n "Logo URL: "
+                    read logo_url
+
+                    # If empty, use the suggested URL
+                    if [[ -z "$logo_url" ]]; then
+                        logo_url="$suggested_url"
+                        echo "Using suggested URL: $logo_url"
+                    fi
+                else
+                    echo -n "Enter logo URL: "
+                    read logo_url
+                fi
+
+                if [[ -z "$logo_url" ]]; then
+                    echo "❌ No URL provided. Operation cancelled."
+                    echo "Press Enter to continue..."
+                    read
+                    continue
+                fi
+
+                echo
+                echo "Downloading and applying branding..."
+                echo "This may take a moment..."
+                echo
+
+                # Call the apply-branding.sh script
+                if bash "$ASSET_SCRIPT_DIR/apply-branding.sh" "$container_name" "$logo_url"; then
+                    echo
+                    echo "✅ Branding applied successfully!"
+                else
+                    echo
+                    echo "❌ Failed to apply branding."
+                    echo "Please check:"
+                    echo "  1. URL is correct and accessible"
+                    echo "  2. Container is running"
+                    echo "  3. ImageMagick is installed (sudo apt-get install imagemagick)"
+                fi
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            2)
+                # Use default QuantaBase branding
+                clear
+                echo "╔════════════════════════════════════════╗"
+                echo "║      Apply Default QuantaBase Branding ║"
+                echo "╚════════════════════════════════════════╝"
+                echo
+                echo "This will apply the default QuantaBase branding to the container."
+                echo
+                echo "Default logo URL:"
+                echo "  https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/default_logo.png"
+                echo
+                echo -n "Continue? (y/N): "
+                read confirm
+
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    echo
+                    echo "Applying default QuantaBase branding..."
+                    echo
+
+                    local default_logo_url="https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/default_logo.png"
+
+                    if bash "$ASSET_SCRIPT_DIR/apply-branding.sh" "$container_name" "$default_logo_url"; then
+                        echo
+                        echo "✅ Default branding applied successfully!"
+                    else
+                        echo
+                        echo "❌ Failed to apply default branding."
+                    fi
+                else
+                    echo "Operation cancelled."
+                fi
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            3)
+                # Update deployment name (WEBUI_NAME)
+                clear
+                echo "╔════════════════════════════════════════╗"
+                echo "║       Update Deployment Name           ║"
+                echo "╚════════════════════════════════════════╝"
+                echo
+                echo "Current name: $current_webui_name"
+                echo
+                echo "⚠️  This will recreate the container with a new name."
+                echo "    All data will be preserved (volumes are maintained)."
+                echo
+                echo "Enter new deployment name (or press Enter to cancel):"
+                echo -n "New name: "
+                read new_webui_name
+
+                if [[ -z "$new_webui_name" ]]; then
+                    echo "❌ No name provided. Operation cancelled."
+                    echo "Press Enter to continue..."
+                    read
+                    continue
+                fi
+
+                echo
+                echo "⚠️  Summary of changes:"
+                echo "    Old name: $current_webui_name"
+                echo "    New name: $new_webui_name"
+                echo "    Container will be recreated (data preserved)"
+                echo
+                echo -n "Continue? (y/N): "
+                read confirm
+
+                if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                    echo
+                    echo "Updating deployment name..."
+                    echo
+
+                    # Get all current environment variables from container
+                    local google_client_id=$(docker exec "$container_name" env 2>/dev/null | grep "GOOGLE_CLIENT_ID=" | cut -d'=' -f2- 2>/dev/null || echo "")
+                    local google_client_secret=$(docker exec "$container_name" env 2>/dev/null | grep "GOOGLE_CLIENT_SECRET=" | cut -d'=' -f2- 2>/dev/null || echo "")
+                    local redirect_uri=$(docker exec "$container_name" env 2>/dev/null | grep "GOOGLE_REDIRECT_URI=" | cut -d'=' -f2- 2>/dev/null || echo "")
+                    local oauth_domains=$(docker exec "$container_name" env 2>/dev/null | grep "OAUTH_ALLOWED_DOMAINS=" | cut -d'=' -f2- 2>/dev/null || echo "")
+                    local webui_secret=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_SECRET_KEY=" | cut -d'=' -f2- 2>/dev/null || echo "")
+                    local webui_url=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_URL=" | cut -d'=' -f2- 2>/dev/null || echo "")
+                    local database_url=$(docker exec "$container_name" env 2>/dev/null | grep "DATABASE_URL=" | cut -d'=' -f2- 2>/dev/null || echo "")
+                    local client_name_env=$(docker exec "$container_name" env 2>/dev/null | grep "CLIENT_NAME=" | cut -d'=' -f2- 2>/dev/null || echo "")
+
+                    # Get port and network configuration
+                    local ports=$(docker port "$container_name" 2>/dev/null)
+                    local current_port=""
+                    if [[ -n "$ports" ]]; then
+                        current_port=$(echo "$ports" | grep -o '0.0.0.0:[0-9]*' | head -1 | cut -d: -f2)
+                    fi
+
+                    local volume_name="${container_name}-data"
+                    local network_name=$(docker inspect "$container_name" --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}' 2>/dev/null)
+                    local network_name_str=$(docker network inspect "$network_name" --format '{{.Name}}' 2>/dev/null)
+
+                    # Stop and remove container
+                    echo "Stopping container..."
+                    docker stop "$container_name" 2>/dev/null
+                    docker rm "$container_name" 2>/dev/null
+
+                    # Use OPENWEBUI_IMAGE_TAG environment variable
+                    local image_tag="${OPENWEBUI_IMAGE_TAG:-main}"
+
+                    # Build docker command
+                    local docker_cmd="docker run -d --name ${container_name}"
+
+                    # Add port mapping if exists
+                    if [[ -n "$current_port" ]]; then
+                        docker_cmd="$docker_cmd -p ${current_port}:8080"
+                    fi
+
+                    # Add network if exists
+                    if [[ "$network_name_str" == "openwebui-network" ]]; then
+                        docker_cmd="$docker_cmd --network openwebui-network"
+                    fi
+
+                    # Add environment variables
+                    docker_cmd="$docker_cmd"
+                    [[ -n "$google_client_id" ]] && docker_cmd="$docker_cmd -e GOOGLE_CLIENT_ID=\"$google_client_id\""
+                    [[ -n "$google_client_secret" ]] && docker_cmd="$docker_cmd -e GOOGLE_CLIENT_SECRET=\"$google_client_secret\""
+                    [[ -n "$redirect_uri" ]] && docker_cmd="$docker_cmd -e GOOGLE_REDIRECT_URI=\"$redirect_uri\""
+                    [[ -n "$oauth_domains" ]] && docker_cmd="$docker_cmd -e OAUTH_ALLOWED_DOMAINS=\"$oauth_domains\""
+                    docker_cmd="$docker_cmd -e ENABLE_OAUTH_SIGNUP=true"
+                    docker_cmd="$docker_cmd -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration"
+                    docker_cmd="$docker_cmd -e WEBUI_NAME=\"$new_webui_name\""
+                    [[ -n "$webui_secret" ]] && docker_cmd="$docker_cmd -e WEBUI_SECRET_KEY=\"$webui_secret\""
+                    [[ -n "$webui_url" ]] && docker_cmd="$docker_cmd -e WEBUI_URL=\"$webui_url\""
+                    [[ -n "$webui_url" ]] && docker_cmd="$docker_cmd -e WEBUI_BASE_URL=\"$webui_url\""
+                    docker_cmd="$docker_cmd -e ENABLE_VERSION_UPDATE_CHECK=false"
+                    docker_cmd="$docker_cmd -e USER_PERMISSIONS_CHAT_CONTROLS=false"
+                    [[ -n "$fqdn" ]] && docker_cmd="$docker_cmd -e FQDN=\"$fqdn\""
+                    [[ -n "$client_name_env" ]] && docker_cmd="$docker_cmd -e CLIENT_NAME=\"$client_name_env\""
+                    [[ -n "$database_url" ]] && docker_cmd="$docker_cmd -e DATABASE_URL=\"$database_url\""
+
+                    # Add volume and restart policy
+                    docker_cmd="$docker_cmd -v ${volume_name}:/app/backend/data --restart unless-stopped"
+                    docker_cmd="$docker_cmd ghcr.io/imagicrafter/open-webui:${image_tag}"
+
+                    # Execute docker command
+                    echo "Creating container with new name..."
+                    eval "$docker_cmd"
+
+                    if [ $? -eq 0 ]; then
+                        echo
+                        echo "✅ Deployment name updated successfully!"
+                        echo "   New name: $new_webui_name"
+                        echo "   Hard refresh browser to see changes"
+                    else
+                        echo
+                        echo "❌ Failed to recreate container."
+                        echo "   Check 'docker ps -a' for details"
+                    fi
+                else
+                    echo "Operation cancelled."
+                fi
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            4)
+                # Return to deployment menu
+                return
+                ;;
+            *)
+                echo "Invalid selection. Press Enter to continue..."
+                read
                 ;;
         esac
     done

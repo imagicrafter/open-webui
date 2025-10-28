@@ -304,7 +304,7 @@ wait_for_apt_locks
 echo -e "${GREEN}✅ Package locks released${NC}"
 
 echo -e "${YELLOW}Installing packages (this may take 10-30 seconds)...${NC}"
-DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools
+DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools imagemagick
 echo -e "${GREEN}✅ Packages installed${NC}"
 
 # Step 8: Create welcome message

@@ -141,7 +141,7 @@ The script automatically:
   - **Production servers**: `OPENWEBUI_IMAGE_TAG=release` (uses `:release` Docker images)
   - Configured in `~/.bashrc` for persistent use
 - ✅ Creates `/opt/openwebui-nginx` directory
-- ✅ Installs useful packages (certbot, jq, htop, tree, net-tools)
+- ✅ Installs useful packages (certbot, jq, htop, tree, net-tools, imagemagick)
 - ✅ Configures auto-start of client-manager on SSH login
 - ✅ Tests Docker access
 
