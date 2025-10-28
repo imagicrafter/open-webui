@@ -45,81 +45,86 @@ generate_logo_variants() {
     local temp_dir="$2"
 
     echo -e "${BLUE}Generating logo variants...${NC}"
+    echo -e "${BLUE}Note: Preserving aspect ratio with transparent background${NC}"
+    echo
 
-    # Generate favicon.png (32x32)
-    if convert "$source_file" -resize 32x32 "$temp_dir/favicon.png" 2>/dev/null; then
+    # Generate favicon.png (32x32) - preserve aspect ratio
+    if convert "$source_file" -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} favicon.png (32x32)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon.png"
         return 1
     fi
 
-    # Generate favicon-96x96.png
-    if convert "$source_file" -resize 96x96 "$temp_dir/favicon-96x96.png" 2>/dev/null; then
+    # Generate favicon-96x96.png - preserve aspect ratio
+    if convert "$source_file" -resize 96x96 -background none -gravity center -extent 96x96 "$temp_dir/favicon-96x96.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} favicon-96x96.png (96x96)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon-96x96.png"
         return 1
     fi
 
-    # Generate favicon-dark.png (use same as favicon for now)
-    if convert "$source_file" -resize 32x32 "$temp_dir/favicon-dark.png" 2>/dev/null; then
+    # Generate favicon-dark.png (use same as favicon for now) - preserve aspect ratio
+    if convert "$source_file" -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon-dark.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} favicon-dark.png (32x32)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon-dark.png"
         return 1
     fi
 
-    # Generate logo.png (keep original size or resize to reasonable default)
-    if convert "$source_file" -resize 512x512 "$temp_dir/logo.png" 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} logo.png (512x512)"
+    # Generate logo.png - preserve aspect ratio with transparent background
+    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/logo.png" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} logo.png (512x512, aspect preserved)"
     else
         echo -e "${RED}✗${NC} Failed to generate logo.png"
         return 1
     fi
 
-    # Generate apple-touch-icon.png (180x180)
-    if convert "$source_file" -resize 180x180 "$temp_dir/apple-touch-icon.png" 2>/dev/null; then
+    # Generate apple-touch-icon.png (180x180) - preserve aspect ratio
+    if convert "$source_file" -resize 180x180 -background none -gravity center -extent 180x180 "$temp_dir/apple-touch-icon.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} apple-touch-icon.png (180x180)"
     else
         echo -e "${RED}✗${NC} Failed to generate apple-touch-icon.png"
         return 1
     fi
 
-    # Generate web-app-manifest-192x192.png
-    if convert "$source_file" -resize 192x192 "$temp_dir/web-app-manifest-192x192.png" 2>/dev/null; then
+    # Generate web-app-manifest-192x192.png - preserve aspect ratio
+    if convert "$source_file" -resize 192x192 -background none -gravity center -extent 192x192 "$temp_dir/web-app-manifest-192x192.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} web-app-manifest-192x192.png (192x192)"
     else
         echo -e "${RED}✗${NC} Failed to generate web-app-manifest-192x192.png"
         return 1
     fi
 
-    # Generate web-app-manifest-512x512.png
-    if convert "$source_file" -resize 512x512 "$temp_dir/web-app-manifest-512x512.png" 2>/dev/null; then
+    # Generate web-app-manifest-512x512.png - preserve aspect ratio
+    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/web-app-manifest-512x512.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} web-app-manifest-512x512.png (512x512)"
     else
         echo -e "${RED}✗${NC} Failed to generate web-app-manifest-512x512.png"
         return 1
     fi
 
-    # Generate splash.png (for loading screens)
-    if convert "$source_file" -resize 512x512 "$temp_dir/splash.png" 2>/dev/null; then
+    # Generate splash.png (for loading screens) - preserve aspect ratio
+    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/splash.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} splash.png (512x512)"
     else
         echo -e "${RED}✗${NC} Failed to generate splash.png"
         return 1
     fi
 
-    # Generate splash-dark.png (same as splash for now)
-    if convert "$source_file" -resize 512x512 "$temp_dir/splash-dark.png" 2>/dev/null; then
+    # Generate splash-dark.png (same as splash for now) - preserve aspect ratio
+    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/splash-dark.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} splash-dark.png (512x512)"
     else
         echo -e "${RED}✗${NC} Failed to generate splash-dark.png"
         return 1
     fi
 
-    # Generate favicon.ico (16x16 and 32x32 multi-resolution ICO)
-    if convert "$source_file" \( -clone 0 -resize 16x16 \) \( -clone 0 -resize 32x32 \) -delete 0 "$temp_dir/favicon.ico" 2>/dev/null; then
+    # Generate favicon.ico (16x16 and 32x32 multi-resolution ICO) - preserve aspect ratio
+    if convert "$source_file" \
+        \( -clone 0 -resize 16x16 -background none -gravity center -extent 16x16 \) \
+        \( -clone 0 -resize 32x32 -background none -gravity center -extent 32x32 \) \
+        -delete 0 "$temp_dir/favicon.ico" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} favicon.ico (16x16, 32x32)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon.ico"
