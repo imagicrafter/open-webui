@@ -3221,11 +3221,12 @@ show_asset_management() {
         echo "⚠️  Name changes: Container will be recreated (preserves all data)"
         echo
         echo "1) Apply logo branding from URL"
-        echo "2) Use default QuantaBase logo"
-        echo "3) Update deployment name (WEBUI_NAME)"
-        echo "4) Return to deployment menu"
+        echo "2) Generate custom text logo (1-2 letters)"
+        echo "3) Use default QuantaBase logo"
+        echo "4) Update deployment name (WEBUI_NAME)"
+        echo "5) Return to deployment menu"
         echo
-        echo -n "Select action (1-4): "
+        echo -n "Select action (1-5): "
         read action
 
         case "$action" in
@@ -3295,6 +3296,132 @@ show_asset_management() {
                 read
                 ;;
             2)
+                # Generate custom text logo
+                clear
+                echo "╔════════════════════════════════════════╗"
+                echo "║     Generate Custom Text Logo          ║"
+                echo "╚════════════════════════════════════════╝"
+                echo
+                echo "Create a custom logo from 1-2 letters."
+                echo "Perfect for client initials or brand abbreviations."
+                echo
+
+                # Derive default text from FQDN or container name
+                local default_text=""
+                if [[ -n "$fqdn" ]]; then
+                    # Extract first letters from domain parts
+                    default_text=$(echo "$fqdn" | sed 's/\./ /g' | awk '{for(i=1;i<=2;i++) printf toupper(substr($i,1,1))}')
+                fi
+                if [[ -z "$default_text" ]]; then
+                    default_text="OW"
+                fi
+
+                echo "Enter logo text (1-2 letters):"
+                echo -n "Text [$default_text]: "
+                read text_input
+                text_input=${text_input:-$default_text}
+
+                # Validate text length
+                if [[ ${#text_input} -gt 2 ]]; then
+                    echo "❌ Text must be 1-2 letters. Operation cancelled."
+                    echo "Press Enter to continue..."
+                    read
+                    continue
+                fi
+
+                echo
+                echo "Select font style:"
+                echo "1) Helvetica-Bold (clean, modern)"
+                echo "2) AvantGarde-Demi (geometric, professional)"
+                echo "3) Bookman-Demi (serif, traditional)"
+                echo "4) Courier-Bold (monospace, tech)"
+                echo -n "Font [1]: "
+                read font_choice
+                font_choice=${font_choice:-1}
+
+                local font=""
+                case "$font_choice" in
+                    1) font="Helvetica-Bold" ;;
+                    2) font="AvantGarde-Demi" ;;
+                    3) font="Bookman-Demi" ;;
+                    4) font="Courier-Bold" ;;
+                    *) font="Helvetica-Bold" ;;
+                esac
+
+                echo
+                echo "Select background style:"
+                echo "1) White circle on transparent"
+                echo "2) Black circle on transparent"
+                echo "3) No background (text only)"
+                echo "4) Rounded square (white)"
+                echo -n "Background [1]: "
+                read bg_choice
+                bg_choice=${bg_choice:-1}
+
+                local bg_style=""
+                local bg_color=""
+                local text_color=""
+                case "$bg_choice" in
+                    1)
+                        bg_style="circle"
+                        bg_color="#FFFFFF"
+                        text_color="#000000"
+                        ;;
+                    2)
+                        bg_style="circle"
+                        bg_color="#000000"
+                        text_color="#FFFFFF"
+                        ;;
+                    3)
+                        bg_style="none"
+                        bg_color="none"
+                        text_color="#000000"
+                        ;;
+                    4)
+                        bg_style="rounded-square"
+                        bg_color="#FFFFFF"
+                        text_color="#000000"
+                        ;;
+                    *)
+                        bg_style="circle"
+                        bg_color="#FFFFFF"
+                        text_color="#000000"
+                        ;;
+                esac
+
+                echo
+                echo "Summary:"
+                echo "  Text: $text_input"
+                echo "  Font: $font"
+                echo "  Background: $bg_style ($bg_color)"
+                echo "  Text color: $text_color"
+                echo
+                echo -n "Generate and apply logo? (Y/n): "
+                read confirm
+
+                if [[ ! "$confirm" =~ ^[Nn]$ ]]; then
+                    echo
+                    echo "Generating custom text logo..."
+                    echo
+
+                    if bash "$ASSET_SCRIPT_DIR/generate-text-logo.sh" "$container_name" "$text_input" "$font" "$bg_style" "$bg_color" "$text_color"; then
+                        echo
+                        echo "✅ Custom text logo generated and applied successfully!"
+                    else
+                        echo
+                        echo "❌ Failed to generate text logo."
+                        echo "Please check:"
+                        echo "  1. Container is running"
+                        echo "  2. ImageMagick is installed (sudo apt-get install imagemagick)"
+                    fi
+                else
+                    echo "Operation cancelled."
+                fi
+                echo
+                echo "Press Enter to continue..."
+                read
+                ;;
+            3)
                 # Use default QuantaBase branding
                 clear
                 echo "╔════════════════════════════════════════╗"
@@ -3330,7 +3457,7 @@ show_asset_management() {
                 echo "Press Enter to continue..."
                 read
                 ;;
-            3)
+            4)
                 # Update deployment name (WEBUI_NAME)
                 clear
                 echo "╔════════════════════════════════════════╗"
@@ -3457,7 +3584,7 @@ show_asset_management() {
                 echo "Press Enter to continue..."
                 read
                 ;;
-            4)
+            5)
                 # Return to deployment menu
                 return
                 ;;
