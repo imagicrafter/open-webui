@@ -3439,7 +3439,12 @@ show_asset_management() {
                         echo
                         echo "✅ Deployment name updated successfully!"
                         echo "   New name: $new_webui_name"
-                        echo "   Hard refresh browser to see changes"
+                        echo
+                        echo "⚠️  IMPORTANT: Container was recreated from Docker image"
+                        echo "   Custom logos were reset to default"
+                        echo "   You need to re-apply logo branding (Asset Management → Option 1)"
+                        echo
+                        echo "   Hard refresh browser to see name change"
                     else
                         echo
                         echo "❌ Failed to recreate container."
