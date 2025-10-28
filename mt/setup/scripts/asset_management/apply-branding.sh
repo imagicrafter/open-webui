@@ -72,9 +72,10 @@ generate_logo_variants() {
         return 1
     fi
 
-    # Generate logo.png - preserve aspect ratio with high-quality filter
-    if convert "$source_file" -filter Lanczos -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/logo.png" 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} logo.png (512x512, high-quality)"
+    # Generate logo.png - smaller size for UI elements (sidebar, chat avatars)
+    # Using 96x96 to match actual display size and avoid browser scaling artifacts
+    if convert "$source_file" -filter Lanczos -resize 96x96 -background none -gravity center -extent 96x96 "$temp_dir/logo.png" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} logo.png (96x96, optimized for UI elements)"
     else
         echo -e "${RED}✗${NC} Failed to generate logo.png"
         return 1
