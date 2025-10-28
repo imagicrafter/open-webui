@@ -199,11 +199,35 @@ apply_branding_to_container() {
         fi
     done
 
+    # Copy favicon to swagger-ui directory
+    echo
+    echo -e "${YELLOW}Copying to swagger-ui directory...${NC}"
+    if [ -f "$temp_dir/favicon.png" ]; then
+        ((total_count++))
+        if docker cp "$temp_dir/favicon.png" "$container_name:$backend_static/swagger-ui/favicon.png" 2>/dev/null; then
+            echo -e "${GREEN}✓${NC} $backend_static/swagger-ui/favicon.png"
+            ((success_count++))
+        else
+            echo -e "${YELLOW}⚠${NC} Failed to copy to swagger-ui (may not exist)"
+        fi
+    fi
+
     echo
     echo -e "${GREEN}✅ Branding applied: $success_count/$total_count files copied${NC}"
     echo
-    echo -e "${BLUE}ℹ${NC}  Note: Changes will be visible immediately (no restart needed)"
-    echo -e "${BLUE}ℹ${NC}  Hard refresh browser (Ctrl+Shift+R) to see new logos"
+
+    # Restart container to ensure all static assets are reloaded
+    echo -e "${BLUE}Restarting container to reload static assets...${NC}"
+    if docker restart "$container_name" >/dev/null 2>&1; then
+        echo -e "${GREEN}✓${NC} Container restarted successfully"
+        echo
+        echo -e "${BLUE}ℹ${NC}  Container is restarting (this takes ~10-15 seconds)"
+        echo -e "${BLUE}ℹ${NC}  Hard refresh browser (Ctrl+Shift+R) after container is ready"
+        echo -e "${BLUE}ℹ${NC}  Check status: docker ps | grep $container_name"
+    else
+        echo -e "${YELLOW}⚠${NC} Failed to restart container (manual restart recommended)"
+        echo -e "${BLUE}ℹ${NC}  Restart manually: docker restart $container_name"
+    fi
     echo
 
     return 0

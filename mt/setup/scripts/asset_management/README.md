@@ -100,11 +100,13 @@ Logos are copied to multiple locations within the container:
    - Select option 1: "Apply logo branding from URL"
    - Enter logo URL or press Enter to use auto-suggested URL
    - Wait for download and processing
+   - Container will automatically restart (~15 seconds)
    - Hard refresh browser to see changes (Ctrl+Shift+R)
 
 3. **Apply default QuantaBase logo:**
    - Select option 2: "Use default QuantaBase logo"
    - Confirm application
+   - Container will automatically restart (~15 seconds)
    - Hard refresh browser to see changes
 
 4. **Update deployment name:**

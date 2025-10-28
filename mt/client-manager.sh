@@ -3217,8 +3217,8 @@ show_asset_management() {
         local current_webui_name=$(docker exec "$container_name" env 2>/dev/null | grep "WEBUI_NAME=" | cut -d'=' -f2- 2>/dev/null || echo "Not set")
         echo "Current Name: $current_webui_name"
         echo
-        echo "⚠️  Logo changes: Applied immediately (no restart needed)"
-        echo "⚠️  Name changes: Require container recreation (preserves all data)"
+        echo "⚠️  Logo changes: Container will restart (~15 seconds)"
+        echo "⚠️  Name changes: Container will be recreated (preserves all data)"
         echo
         echo "1) Apply logo branding from URL"
         echo "2) Use default QuantaBase logo"
