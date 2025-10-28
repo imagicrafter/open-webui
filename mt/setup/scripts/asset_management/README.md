@@ -44,15 +44,19 @@ From a single source logo, the system automatically generates:
 
 | File | Size | Purpose |
 |------|------|---------|
-| `favicon.png` | 32x32 | Browser favicon |
+| `favicon.png` | 32x32 | Browser favicon (PNG) |
 | `favicon-96x96.png` | 96x96 | High-res favicon |
 | `favicon-dark.png` | 32x32 | Dark mode favicon |
+| `favicon.ico` | 16x16, 32x32 | Browser favicon (ICO format) |
+| `favicon.svg` | Vector | Browser favicon (SVG format) |
 | `logo.png` | 512x512 | Main application logo |
 | `apple-touch-icon.png` | 180x180 | iOS home screen icon |
 | `web-app-manifest-192x192.png` | 192x192 | PWA manifest icon |
 | `web-app-manifest-512x512.png` | 512x512 | PWA manifest icon (large) |
 | `splash.png` | 512x512 | Loading screen logo |
 | `splash-dark.png` | 512x512 | Dark mode loading screen |
+
+**Total: 11 variants** automatically generated from one source image.
 
 ## Container File Locations
 
@@ -63,10 +67,14 @@ Logos are copied to multiple locations within the container:
 ├── favicon.png
 ├── favicon-96x96.png
 ├── favicon-dark.png
+├── favicon.ico
+├── favicon.svg
 ├── logo.png
 ├── apple-touch-icon.png
 ├── web-app-manifest-192x192.png
-└── web-app-manifest-512x512.png
+├── web-app-manifest-512x512.png
+└── swagger-ui/
+    └── favicon.png
 
 /app/build/
 ├── favicon.png
@@ -76,6 +84,8 @@ Logos are copied to multiple locations within the container:
 ├── favicon.png
 ├── favicon-96x96.png
 ├── favicon-dark.png
+├── favicon.ico
+├── favicon.svg
 ├── logo.png
 ├── apple-touch-icon.png
 ├── web-app-manifest-192x192.png

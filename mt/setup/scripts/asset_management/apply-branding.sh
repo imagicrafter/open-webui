@@ -118,6 +118,31 @@ generate_logo_variants() {
         return 1
     fi
 
+    # Generate favicon.ico (16x16 and 32x32 multi-resolution ICO)
+    if convert "$source_file" \( -clone 0 -resize 16x16 \) \( -clone 0 -resize 32x32 \) -delete 0 "$temp_dir/favicon.ico" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} favicon.ico (16x16, 32x32)"
+    else
+        echo -e "${RED}✗${NC} Failed to generate favicon.ico"
+        return 1
+    fi
+
+    # Generate favicon.svg (convert PNG to SVG outline)
+    # Note: This creates a simple SVG embedding the PNG - not a true vector conversion
+    if convert "$source_file" -resize 32x32 -background none -flatten "$temp_dir/favicon-temp.png" 2>/dev/null; then
+        # Create simple SVG wrapper
+        local img_data=$(base64 -w 0 "$temp_dir/favicon-temp.png" 2>/dev/null || base64 "$temp_dir/favicon-temp.png")
+        cat > "$temp_dir/favicon.svg" <<EOF
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="32" height="32" viewBox="0 0 32 32">
+  <image width="32" height="32" xlink:href="data:image/png;base64,$img_data"/>
+</svg>
+EOF
+        rm -f "$temp_dir/favicon-temp.png"
+        echo -e "${GREEN}✓${NC} favicon.svg (SVG wrapper)"
+    else
+        echo -e "${RED}✗${NC} Failed to generate favicon.svg"
+        return 1
+    fi
+
     return 0
 }
 
@@ -139,6 +164,8 @@ apply_branding_to_container() {
         "favicon.png"
         "favicon-96x96.png"
         "favicon-dark.png"
+        "favicon.ico"
+        "favicon.svg"
         "logo.png"
         "apple-touch-icon.png"
         "web-app-manifest-192x192.png"
