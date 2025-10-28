@@ -45,76 +45,76 @@ generate_logo_variants() {
     local temp_dir="$2"
 
     echo -e "${BLUE}Generating logo variants...${NC}"
-    echo -e "${BLUE}Note: Preserving aspect ratio with transparent background${NC}"
+    echo -e "${BLUE}Note: Using high-quality Lanczos resampling filter${NC}"
     echo
 
-    # Generate favicon.png (32x32) - preserve aspect ratio
-    if convert "$source_file" -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon.png" 2>/dev/null; then
+    # Generate favicon.png (32x32) - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} favicon.png (32x32)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon.png"
         return 1
     fi
 
-    # Generate favicon-96x96.png - preserve aspect ratio
-    if convert "$source_file" -resize 96x96 -background none -gravity center -extent 96x96 "$temp_dir/favicon-96x96.png" 2>/dev/null; then
+    # Generate favicon-96x96.png - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 96x96 -background none -gravity center -extent 96x96 "$temp_dir/favicon-96x96.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} favicon-96x96.png (96x96)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon-96x96.png"
         return 1
     fi
 
-    # Generate favicon-dark.png (use same as favicon for now) - preserve aspect ratio
-    if convert "$source_file" -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon-dark.png" 2>/dev/null; then
+    # Generate favicon-dark.png (use same as favicon for now) - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 32x32 -background none -gravity center -extent 32x32 "$temp_dir/favicon-dark.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} favicon-dark.png (32x32)"
     else
         echo -e "${RED}✗${NC} Failed to generate favicon-dark.png"
         return 1
     fi
 
-    # Generate logo.png - preserve aspect ratio with transparent background
-    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/logo.png" 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} logo.png (512x512, aspect preserved)"
+    # Generate logo.png - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/logo.png" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} logo.png (512x512, high-quality)"
     else
         echo -e "${RED}✗${NC} Failed to generate logo.png"
         return 1
     fi
 
-    # Generate apple-touch-icon.png (180x180) - preserve aspect ratio
-    if convert "$source_file" -resize 180x180 -background none -gravity center -extent 180x180 "$temp_dir/apple-touch-icon.png" 2>/dev/null; then
+    # Generate apple-touch-icon.png (180x180) - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 180x180 -background none -gravity center -extent 180x180 "$temp_dir/apple-touch-icon.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} apple-touch-icon.png (180x180)"
     else
         echo -e "${RED}✗${NC} Failed to generate apple-touch-icon.png"
         return 1
     fi
 
-    # Generate web-app-manifest-192x192.png - preserve aspect ratio
-    if convert "$source_file" -resize 192x192 -background none -gravity center -extent 192x192 "$temp_dir/web-app-manifest-192x192.png" 2>/dev/null; then
+    # Generate web-app-manifest-192x192.png - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 192x192 -background none -gravity center -extent 192x192 "$temp_dir/web-app-manifest-192x192.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} web-app-manifest-192x192.png (192x192)"
     else
         echo -e "${RED}✗${NC} Failed to generate web-app-manifest-192x192.png"
         return 1
     fi
 
-    # Generate web-app-manifest-512x512.png - preserve aspect ratio
-    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/web-app-manifest-512x512.png" 2>/dev/null; then
+    # Generate web-app-manifest-512x512.png - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/web-app-manifest-512x512.png" 2>/dev/null; then
         echo -e "${GREEN}✓${NC} web-app-manifest-512x512.png (512x512)"
     else
         echo -e "${RED}✗${NC} Failed to generate web-app-manifest-512x512.png"
         return 1
     fi
 
-    # Generate splash.png (for loading screens) - preserve aspect ratio
-    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/splash.png" 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} splash.png (512x512)"
+    # Generate splash.png (for loading screens) - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/splash.png" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} splash.png (512x512, high-quality)"
     else
         echo -e "${RED}✗${NC} Failed to generate splash.png"
         return 1
     fi
 
-    # Generate splash-dark.png (same as splash for now) - preserve aspect ratio
-    if convert "$source_file" -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/splash-dark.png" 2>/dev/null; then
-        echo -e "${GREEN}✓${NC} splash-dark.png (512x512)"
+    # Generate splash-dark.png (same as splash for now) - preserve aspect ratio with high-quality filter
+    if convert "$source_file" -filter Lanczos -resize 512x512 -background none -gravity center -extent 512x512 "$temp_dir/splash-dark.png" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} splash-dark.png (512x512, high-quality)"
     else
         echo -e "${RED}✗${NC} Failed to generate splash-dark.png"
         return 1
