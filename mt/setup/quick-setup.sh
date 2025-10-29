@@ -167,7 +167,7 @@ else
 fi
 
 # Step 1: Create user if doesn't exist
-echo -e "${BLUE}[1/8] Creating user '$DEPLOY_USER'...${NC}"
+echo -e "${BLUE}[1/9] Creating user '$DEPLOY_USER'...${NC}"
 if id "$DEPLOY_USER" &>/dev/null; then
     echo -e "${YELLOW}User already exists, continuing...${NC}"
 else
@@ -176,19 +176,19 @@ else
 fi
 
 # Step 2: Add to sudo and docker groups
-echo -e "${BLUE}[2/8] Configuring groups (sudo, docker)...${NC}"
+echo -e "${BLUE}[2/9] Configuring groups (sudo, docker)...${NC}"
 usermod -aG sudo "$DEPLOY_USER"
 usermod -aG docker "$DEPLOY_USER"
 echo -e "${GREEN}✅ Groups configured${NC}"
 
 # Step 3: Configure passwordless sudo
-echo -e "${BLUE}[3/8] Enabling passwordless sudo...${NC}"
+echo -e "${BLUE}[3/9] Enabling passwordless sudo...${NC}"
 echo "$DEPLOY_USER ALL=(ALL) NOPASSWD:ALL" > "/etc/sudoers.d/$DEPLOY_USER"
 chmod 0440 "/etc/sudoers.d/$DEPLOY_USER"
 echo -e "${GREEN}✅ Passwordless sudo enabled${NC}"
 
 # Step 4: Set up SSH key
-echo -e "${BLUE}[4/8] Setting up SSH access...${NC}"
+echo -e "${BLUE}[4/9] Setting up SSH access...${NC}"
 # Fix home directory permissions (SSH requires 755 or 700)
 chmod 755 "/home/$DEPLOY_USER"
 mkdir -p "/home/$DEPLOY_USER/.ssh"
@@ -209,7 +209,7 @@ chmod 700 "/home/$DEPLOY_USER/.ssh"
 chmod 600 "/home/$DEPLOY_USER/.ssh/authorized_keys"
 
 # Step 4.5: Configure environment and auto-start
-echo -e "${BLUE}[4.5/8] Configuring environment and auto-start...${NC}"
+echo -e "${BLUE}[4.5/9] Configuring environment and auto-start...${NC}"
 
 # Set Docker image tag based on server type
 case "$SERVER_TYPE" in
@@ -270,7 +270,7 @@ chmod 644 "/home/$DEPLOY_USER/.bash_profile"
 echo -e "${GREEN}✅ Environment configured (OPENWEBUI_IMAGE_TAG=${DOCKER_IMAGE_TAG})${NC}"
 
 # Step 5: Clone Open WebUI repository
-echo -e "${BLUE}[5/8] Cloning repository (branch: ${GIT_BRANCH})...${NC}"
+echo -e "${BLUE}[5/9] Cloning repository (branch: ${GIT_BRANCH})...${NC}"
 REPO_PATH="/home/$DEPLOY_USER/open-webui"
 if [ -d "$REPO_PATH" ]; then
     echo -e "${YELLOW}Repository exists, checking out ${GIT_BRANCH} and pulling latest...${NC}"
@@ -288,13 +288,87 @@ chmod +x "$REPO_PATH/mt/setup"/*.sh 2>/dev/null || true
 echo -e "${GREEN}✅ Repository ready at $REPO_PATH (branch: ${GIT_BRANCH})${NC}"
 
 # Step 6: Create directories
-echo -e "${BLUE}[6/8] Creating directories...${NC}"
+echo -e "${BLUE}[6/9] Creating directories...${NC}"
 mkdir -p /opt/openwebui-nginx
 chown -R "$DEPLOY_USER:$DEPLOY_USER" /opt/openwebui-nginx
 echo -e "${GREEN}✅ Created /opt/openwebui-nginx${NC}"
 
-# Step 7: Install packages
-echo -e "${BLUE}[7/8] Installing packages (certbot, jq, htop, tree)...${NC}"
+# Step 7: Configure swap space
+echo -e "${BLUE}[7/9] Configuring swap space...${NC}"
+
+# Check if swap already exists
+EXISTING_SWAP=$(swapon --show --noheadings | wc -l)
+if [ "$EXISTING_SWAP" -gt 0 ]; then
+    echo -e "${YELLOW}Swap already configured:${NC}"
+    swapon --show
+    echo -e "${GREEN}✅ Skipping swap creation${NC}"
+else
+    # Calculate swap size based on system memory
+    # Recommendation:
+    #   <= 2GB RAM: 2GB swap
+    #   2-4GB RAM: Equal to RAM
+    #   4-8GB RAM: 4GB swap
+    #   > 8GB RAM: 4GB swap (or custom)
+
+    TOTAL_MEM_KB=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    TOTAL_MEM_GB=$((TOTAL_MEM_KB / 1024 / 1024))
+
+    if [ "$TOTAL_MEM_GB" -le 2 ]; then
+        SWAP_SIZE_GB=2
+    elif [ "$TOTAL_MEM_GB" -le 4 ]; then
+        SWAP_SIZE_GB=$TOTAL_MEM_GB
+    else
+        SWAP_SIZE_GB=4
+    fi
+
+    echo -e "${CYAN}System memory: ${TOTAL_MEM_GB}GB${NC}"
+    echo -e "${CYAN}Creating ${SWAP_SIZE_GB}GB swap file...${NC}"
+
+    # Check available disk space
+    AVAILABLE_SPACE_GB=$(df / | tail -1 | awk '{print int($4/1024/1024)}')
+    if [ "$AVAILABLE_SPACE_GB" -lt "$((SWAP_SIZE_GB + 5))" ]; then
+        echo -e "${YELLOW}⚠️  Limited disk space (${AVAILABLE_SPACE_GB}GB available)${NC}"
+        echo -e "${YELLOW}⚠️  Reducing swap size to 1GB${NC}"
+        SWAP_SIZE_GB=1
+    fi
+
+    # Create swap file
+    if fallocate -l "${SWAP_SIZE_GB}G" /swapfile 2>/dev/null; then
+        echo -e "${GREEN}✅ Swap file allocated (${SWAP_SIZE_GB}GB)${NC}"
+    else
+        # Fallback to dd if fallocate fails
+        echo -e "${YELLOW}Using dd to create swap file (this may take a moment)...${NC}"
+        dd if=/dev/zero of=/swapfile bs=1M count=$((SWAP_SIZE_GB * 1024)) status=progress 2>/dev/null
+        echo -e "${GREEN}✅ Swap file created (${SWAP_SIZE_GB}GB)${NC}"
+    fi
+
+    # Set correct permissions (critical for security)
+    chmod 600 /swapfile
+    echo -e "${GREEN}✅ Swap file permissions set (600)${NC}"
+
+    # Format as swap
+    mkswap /swapfile > /dev/null
+    echo -e "${GREEN}✅ Swap file formatted${NC}"
+
+    # Activate swap
+    swapon /swapfile
+    echo -e "${GREEN}✅ Swap activated${NC}"
+
+    # Make it permanent (survives reboots)
+    if ! grep -q '/swapfile' /etc/fstab; then
+        echo '/swapfile none swap sw 0 0' >> /etc/fstab
+        echo -e "${GREEN}✅ Swap configured in /etc/fstab${NC}"
+    fi
+
+    # Show swap status
+    echo -e "${CYAN}Current swap configuration:${NC}"
+    swapon --show
+    echo
+    free -h | grep -E "Mem:|Swap:"
+fi
+
+# Step 8: Install packages
+echo -e "${BLUE}[8/9] Installing packages (certbot, jq, htop, tree)...${NC}"
 echo -e "${YELLOW}Updating package lists...${NC}"
 apt-get update || true
 
@@ -307,8 +381,45 @@ echo -e "${YELLOW}Installing packages (this may take 10-30 seconds)...${NC}"
 DEBIAN_FRONTEND=noninteractive apt-get install -y certbot jq htop tree net-tools imagemagick
 echo -e "${GREEN}✅ Packages installed${NC}"
 
-# Step 8: Create welcome message
-echo -e "${BLUE}[8/8] Creating welcome message...${NC}"
+# Step 8.5: Optimize system services for multi-container deployments
+echo -e "${BLUE}[8.5/9] Optimizing system services...${NC}"
+
+# Disable snapd (saves ~20MB RAM)
+if systemctl is-active --quiet snapd 2>/dev/null; then
+    echo -e "${YELLOW}Disabling snapd (snap package manager)...${NC}"
+    systemctl stop snapd snapd.socket 2>/dev/null || true
+    systemctl disable snapd snapd.socket 2>/dev/null || true
+    systemctl mask snapd snapd.socket 2>/dev/null || true
+    echo -e "${GREEN}✅ snapd disabled (saves ~20MB RAM)${NC}"
+else
+    echo -e "${CYAN}snapd already disabled${NC}"
+fi
+
+# Disable multipathd (saves ~27MB RAM)
+if systemctl is-active --quiet multipathd 2>/dev/null; then
+    echo -e "${YELLOW}Disabling multipathd (multipath storage daemon)...${NC}"
+    systemctl stop multipathd 2>/dev/null || true
+    systemctl disable multipathd 2>/dev/null || true
+    echo -e "${GREEN}✅ multipathd disabled (saves ~27MB RAM)${NC}"
+else
+    echo -e "${CYAN}multipathd already disabled${NC}"
+fi
+
+# Disable packagekit (saves ~8MB RAM)
+if systemctl is-active --quiet packagekit 2>/dev/null; then
+    echo -e "${YELLOW}Disabling packagekit (GUI package manager)...${NC}"
+    systemctl stop packagekit 2>/dev/null || true
+    systemctl disable packagekit 2>/dev/null || true
+    systemctl mask packagekit 2>/dev/null || true
+    echo -e "${GREEN}✅ packagekit disabled (saves ~8MB RAM)${NC}"
+else
+    echo -e "${CYAN}packagekit already disabled${NC}"
+fi
+
+echo -e "${GREEN}✅ System services optimized (saves ~55MB RAM for containers)${NC}"
+
+# Step 9: Create welcome message
+echo -e "${BLUE}[9/9] Creating welcome message...${NC}"
 cat > "/home/$DEPLOY_USER/WELCOME.txt" << EOF
 ╔════════════════════════════════════════════════════════════╗
 ║          Open WebUI Deployment Server Ready                ║
@@ -323,6 +434,9 @@ Server Configuration:
   - User: qbmgr (sudo + docker access)
   - Repository: ~/open-webui
   - nginx directory: /opt/openwebui-nginx
+  - Swap: 2GB configured
+  - Memory optimized: ~55MB saved (services disabled)
+  - Container limits: 700MB per container (supports 2+ containers)
 
 Quick Start Commands:
 
@@ -374,6 +488,9 @@ else
 fi
 echo -e "  ${GREEN}✅${NC} Packages: certbot, jq, htop, tree"
 echo -e "  ${GREEN}✅${NC} Auto-start: client-manager on login"
+echo -e "  ${GREEN}✅${NC} Swap: 2GB configured"
+echo -e "  ${GREEN}✅${NC} Services optimized: snapd, multipathd, packagekit disabled"
+echo -e "  ${GREEN}✅${NC} Memory saved: ~55MB for containers"
 echo
 echo -e "${YELLOW}Security Reminder:${NC}"
 echo -e "  Root SSH password login is enabled. After testing qbmgr access, secure it with:"

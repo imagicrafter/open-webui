@@ -38,6 +38,61 @@ https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/<domain>_logo.png
 - Domain: `chat.example.com` → Filename: `chat_example_com_logo.png`
 - Domain: `acme.quantabase.io` → Filename: `acme_quantabase_io_logo.png`
 
+## Optimal Source Logo Specifications
+
+### **Recommended Size & Format**
+
+| Property | Recommendation | Notes |
+|----------|----------------|-------|
+| **Minimum Size** | 512x512 pixels | Smaller may lose quality when scaled |
+| **Recommended Size** | 800x800 to 1024x1024 | Best balance of quality and processing speed |
+| **Maximum Size** | 2048x2048 pixels | Larger = slower processing, diminishing returns |
+| **Format** | PNG with transparent background | Maximum flexibility for all variants |
+| **Alternative Format** | PNG with solid background | White/black circle or square |
+| **Acceptable Format** | JPG | No transparency support |
+| **Aspect Ratio** | Square (1:1) | e.g., 1000x1000 pixels |
+| **Near-Square** | Within 10% difference | e.g., 1000x950 (will be centered) |
+| **Color Depth** | 24-bit RGB or 32-bit RGBA | RGBA for transparency |
+| **Compression** | PNG lossless compression | File size not critical |
+
+### **Design Best Practices**
+
+**✅ DO:**
+- Use bold, simple designs that work at small sizes
+- Use high contrast (black on white, white on black)
+- Keep important elements centered
+- Test visibility at 32x32 pixels
+- Use solid colors or simple gradients
+- Design with 2-3 colors maximum for clarity
+
+**❌ DON'T:**
+- Use fine serif fonts (they blur at small sizes like 32x32)
+- Use thin lines (<3px at source resolution)
+- Use complex gradients or subtle color variations
+- Include small text or highly detailed illustrations
+- Use very light colors on white backgrounds
+- Use photos with fine details (they pixelate when scaled down)
+
+### **Example Specifications**
+
+**Simple Icon/Logo:**
+```
+Format: PNG with transparent background
+Size: 1024x1024 pixels
+Colors: 2-3 solid colors, high contrast
+Design: Bold, simple shapes without fine details
+```
+
+**Photo-based Logo:**
+```
+Format: PNG with colored background circle
+Size: 800x800 pixels
+Colors: Full color photo with high contrast
+Background: Solid color circle or square
+```
+
+**Quality Tip:** The system uses high-quality Lanczos filtering to generate all 11 required variants (16x16 to 512x512) from your source image. Starting with a high-quality source ensures the best results across all sizes.
+
 ## Generated Image Variants
 
 From a single source logo, the system automatically generates:

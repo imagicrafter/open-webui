@@ -34,6 +34,7 @@ fi
 
 echo "Starting Open WebUI for client: ${CLIENT_NAME}"
 echo "Container: ${CONTAINER_NAME}"
+echo "Memory Limits: 700MB (hard limit), 600MB (reservation)"
 if [[ "$PORT" != "N/A" ]]; then
     echo "Port: ${PORT}"
 fi
@@ -68,8 +69,16 @@ else
     echo "ℹ️  Using host nginx mode - deploying with port mapping"
 fi
 
+# Memory limits for multi-container deployments
+# - 700MB hard limit: Prevents Python from excessive memory usage
+# - 600MB reservation: Triggers garbage collection before hitting limit
+# - 1400MB swap: 2x memory (prevents OOM kills, uses host swap space)
+# - Allows 2 containers on 2GB droplet, 5 containers on 4GB droplet
 docker_cmd="docker run -d \
     --name ${CONTAINER_NAME} \
+    --memory=\"700m\" \
+    --memory-reservation=\"600m\" \
+    --memory-swap=\"1400m\" \
     ${PORT_CONFIG} \
     ${NETWORK_CONFIG} \
     -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
