@@ -418,8 +418,20 @@ fi
 
 echo -e "${GREEN}✅ System services optimized (saves ~55MB RAM for containers)${NC}"
 
+# Step 8.6: Extract default static assets for volume-mounted deployments
+echo -e "${BLUE}[8.6/9] Extracting default static assets...${NC}"
+echo -e "${CYAN}This prepares branding assets for volume-mounted deployments${NC}"
+
+# Run extraction script as deploy user
+if sudo -u "$DEPLOY_USER" bash "${REPO_PATH}/mt/setup/lib/extract-default-static.sh"; then
+    echo -e "${GREEN}✅ Default assets extracted to /opt/openwebui/defaults/static${NC}"
+else
+    echo -e "${YELLOW}⚠️  Default asset extraction failed${NC}"
+    echo -e "${YELLOW}   You can run manually later: bash ~/open-webui/mt/setup/lib/extract-default-static.sh${NC}"
+fi
+
 # Step 9: Create welcome message
-echo -e "${BLUE}[9/9] Creating welcome message...${NC}"
+echo -e "${BLUE}[9/10] Creating welcome message...${NC}"
 cat > "/home/$DEPLOY_USER/WELCOME.txt" << EOF
 ╔════════════════════════════════════════════════════════════╗
 ║          Open WebUI Deployment Server Ready                ║
@@ -434,6 +446,7 @@ Server Configuration:
   - User: qbmgr (sudo + docker access)
   - Repository: ~/open-webui
   - nginx directory: /opt/openwebui-nginx
+  - Default assets: /opt/openwebui/defaults/static
   - Swap: 2GB configured
   - Memory optimized: ~55MB saved (services disabled)
   - Container limits: 700MB per container (supports 2+ containers)
@@ -488,6 +501,7 @@ else
 fi
 echo -e "  ${GREEN}✅${NC} Packages: certbot, jq, htop, tree"
 echo -e "  ${GREEN}✅${NC} Auto-start: client-manager on login"
+echo -e "  ${GREEN}✅${NC} Default assets: /opt/openwebui/defaults/static"
 echo -e "  ${GREEN}✅${NC} Swap: 2GB configured"
 echo -e "  ${GREEN}✅${NC} Services optimized: snapd, multipathd, packagekit disabled"
 echo -e "  ${GREEN}✅${NC} Memory saved: ~55MB for containers"
