@@ -1,7 +1,10 @@
 #!/bin/bash
 
 # Asset Management for Open WebUI Deployments
-# Downloads logos from URL and applies to container without storing on host
+# Downloads logos from URL and applies branding
+# Supports two modes:
+#   - container: Direct copy to running container (legacy, branding lost on restart)
+#   - host: Save to host directory for post-startup injection (persistent)
 
 # Get the directory of this script
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
@@ -154,12 +157,73 @@ EOF
     return 0
 }
 
+apply_branding_to_host() {
+    local client_name="$1"
+    local temp_dir="$2"
+
+    echo
+    echo -e "${BLUE}Saving branding to host directory for client: $client_name${NC}"
+    echo
+
+    local host_static_dir="/opt/openwebui/${client_name}/static"
+
+    # Check if directory exists
+    if [ ! -d "$host_static_dir" ]; then
+        echo -e "${RED}❌ Host static directory does not exist: $host_static_dir${NC}"
+        echo -e "${YELLOW}ℹ${NC}  Create it with: mkdir -p $host_static_dir"
+        echo -e "${YELLOW}ℹ${NC}  Or deploy container first using start-template.sh"
+        return 1
+    fi
+
+    local files_to_copy=(
+        "favicon.png"
+        "favicon-96x96.png"
+        "favicon-dark.png"
+        "favicon.ico"
+        "favicon.svg"
+        "logo.png"
+        "apple-touch-icon.png"
+        "web-app-manifest-192x192.png"
+        "web-app-manifest-512x512.png"
+        "splash.png"
+        "splash-dark.png"
+    )
+
+    local success_count=0
+    local total_count=0
+
+    for file in "${files_to_copy[@]}"; do
+        if [ -f "$temp_dir/$file" ]; then
+            ((total_count++))
+            if cp -f "$temp_dir/$file" "$host_static_dir/$file" 2>/dev/null; then
+                echo -e "${GREEN}✓${NC} $host_static_dir/$file"
+                ((success_count++))
+            else
+                echo -e "${RED}✗${NC} Failed to copy $file"
+            fi
+        fi
+    done
+
+    echo
+    echo -e "${GREEN}✅ Branding saved: $success_count/$total_count files copied${NC}"
+    echo
+    echo -e "${YELLOW}⚠${NC}  IMPORTANT: Branding saved to host directory"
+    echo -e "${YELLOW}ℹ${NC}  Run post-startup injection to apply branding to container:"
+    echo -e "${BLUE}    mt/setup/lib/inject-branding-post-startup.sh \\${NC}"
+    echo -e "${BLUE}      openwebui-${client_name} ${client_name} ${host_static_dir}${NC}"
+    echo
+
+    return 0
+}
+
 apply_branding_to_container() {
     local container_name="$1"
     local temp_dir="$2"
 
     echo
     echo -e "${BLUE}Applying branding to container: $container_name${NC}"
+    echo -e "${YELLOW}⚠${NC}  WARNING: Branding will be reset on container restart!"
+    echo -e "${YELLOW}ℹ${NC}  Consider using 'host' mode for persistent branding"
     echo
 
     # Check if container exists and is running
@@ -269,8 +333,9 @@ apply_branding_to_container() {
 }
 
 download_and_apply_branding() {
-    local container_name="$1"
+    local target="$1"      # container name or client name
     local logo_url="$2"
+    local mode="${3:-container}"  # "container" or "host" (default: container for backward compatibility)
 
     # Check dependencies first
     if ! check_dependencies; then
@@ -286,7 +351,12 @@ download_and_apply_branding() {
     echo -e "${BLUE}║         Asset Management               ║${NC}"
     echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
     echo
-    echo "Container: $container_name"
+    echo "Mode: $mode"
+    if [ "$mode" = "host" ]; then
+        echo "Client: $target"
+    else
+        echo "Container: $target"
+    fi
     echo "Logo URL: $logo_url"
     echo
 
@@ -321,9 +391,15 @@ download_and_apply_branding() {
 
     echo
 
-    # Apply branding to container
-    if ! apply_branding_to_container "$container_name" "$temp_dir"; then
-        return 1
+    # Apply branding based on mode
+    if [ "$mode" = "host" ]; then
+        if ! apply_branding_to_host "$target" "$temp_dir"; then
+            return 1
+        fi
+    else
+        if ! apply_branding_to_container "$target" "$temp_dir"; then
+            return 1
+        fi
     fi
 
     # Cleanup happens automatically via trap
@@ -332,13 +408,26 @@ download_and_apply_branding() {
 
 # If script is run directly (not sourced)
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    if [ $# -ne 2 ]; then
-        echo "Usage: $0 CONTAINER_NAME LOGO_URL"
+    if [ $# -lt 2 ] || [ $# -gt 3 ]; then
+        echo "Usage: $0 TARGET LOGO_URL [MODE]"
         echo
-        echo "Example:"
-        echo "  $0 openwebui-acme https://example.com/logo.png"
+        echo "Arguments:"
+        echo "  TARGET    - Container name (container mode) or client name (host mode)"
+        echo "  LOGO_URL  - URL to download logo from"
+        echo "  MODE      - Optional: 'container' or 'host' (default: container)"
+        echo
+        echo "Modes:"
+        echo "  container - Direct copy to running container (legacy)"
+        echo "              WARNING: Branding reset on container restart"
+        echo "              Example: $0 openwebui-acme https://example.com/logo.png container"
+        echo
+        echo "  host      - Save to host directory for persistent branding"
+        echo "              Requires: Container deployed with volume mounts (start-template.sh)"
+        echo "              Follow up with: mt/setup/lib/inject-branding-post-startup.sh"
+        echo "              Example: $0 acme https://example.com/logo.png host"
+        echo
         exit 1
     fi
 
-    download_and_apply_branding "$1" "$2"
+    download_and_apply_branding "$1" "$2" "${3:-container}"
 fi
