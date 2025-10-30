@@ -19,6 +19,11 @@ CONTAINER_NAME=$4
 FQDN=$5
 OAUTH_DOMAINS="${6:-martins.net}"  # Default to martins.net if not provided
 WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Generate if not provided
+
+# Per-client directory for volume mounts
+CLIENT_DIR="/opt/openwebui/${CLIENT_NAME}"
+
+# Legacy Docker volume name (for backward compatibility detection)
 VOLUME_NAME="${CONTAINER_NAME}-data"
 
 # Set redirect URI, base URL, and environment based on domain type
@@ -42,6 +47,26 @@ echo "Domain: ${DOMAIN}"
 echo "Environment: ${ENVIRONMENT}"
 echo "Docker Image: ghcr.io/imagicrafter/open-webui:${OPENWEBUI_IMAGE_TAG:-main}"
 echo "Redirect URI: ${REDIRECT_URI}"
+
+# Create per-client directory structure
+echo "Setting up client directory: ${CLIENT_DIR}"
+mkdir -p "${CLIENT_DIR}/data"
+mkdir -p "${CLIENT_DIR}/static"
+
+# Initialize static assets from defaults if empty
+if [ ! -f "${CLIENT_DIR}/static/favicon.png" ]; then
+    echo "Initializing static assets from defaults..."
+    if [ -d "/opt/openwebui/defaults/static" ]; then
+        cp -a /opt/openwebui/defaults/static/. "${CLIENT_DIR}/static/"
+        echo "✓ Static assets initialized"
+    else
+        echo "⚠️  Warning: /opt/openwebui/defaults/static not found"
+        echo "   Run: ./setup/lib/extract-default-static.sh"
+        echo "   Continuing with empty static directory..."
+    fi
+else
+    echo "✓ Static assets already initialized"
+fi
 
 # Check if container already exists
 if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
@@ -79,6 +104,10 @@ docker_cmd="docker run -d \
     --memory=\"700m\" \
     --memory-reservation=\"600m\" \
     --memory-swap=\"1400m\" \
+    --health-cmd=\"curl --silent --fail http://localhost:8080/health || exit 1\" \
+    --health-interval=10s \
+    --health-timeout=5s \
+    --health-retries=3 \
     ${PORT_CONFIG} \
     ${NETWORK_CONFIG} \
     -e GOOGLE_CLIENT_ID=1063776054060-2fa0vn14b7ahi1tmfk49cuio44goosc1.apps.googleusercontent.com \
@@ -103,8 +132,12 @@ fi
 # Use OPENWEBUI_IMAGE_TAG environment variable, default to 'main'
 IMAGE_TAG=${OPENWEBUI_IMAGE_TAG:-main}
 
+# Volume mounts: bind mount to host directories for persistence and portability
+# - data: SQLite database and user files
+# - static: Custom branding assets (SINGLE mount to backend only, not /app/build)
 docker_cmd="$docker_cmd \
-    -v ${VOLUME_NAME}:/app/backend/data \
+    -v ${CLIENT_DIR}/data:/app/backend/data \
+    -v ${CLIENT_DIR}/static:/app/backend/open_webui/static \
     --restart unless-stopped \
     ghcr.io/imagicrafter/open-webui:${IMAGE_TAG}"
 
@@ -121,7 +154,8 @@ if [ $? -eq 0 ]; then
         echo "🌐 External: https://${DOMAIN}"
     fi
 
-    echo "📦 Volume: ${VOLUME_NAME}"
+    echo "📦 Data: ${CLIENT_DIR}/data"
+    echo "🎨 Static: ${CLIENT_DIR}/static"
     echo "🐳 Container: ${CONTAINER_NAME}"
 
     if [ "$NGINX_CONTAINERIZED" = true ]; then
@@ -129,6 +163,7 @@ if [ $? -eq 0 ]; then
         echo "Next steps:"
         echo "1. Configure nginx for ${DOMAIN} using client-manager.sh option 5"
         echo "2. Set up SSL certificate for ${DOMAIN}"
+        echo "3. (Optional) Apply custom branding after container is healthy"
     fi
 else
     echo "❌ Failed to start container for ${CLIENT_NAME}"
