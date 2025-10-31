@@ -55,8 +55,17 @@ echo "Redirect URI: ${REDIRECT_URI}"
 
 # Create per-client directory structure
 echo "Setting up client directory: ${CLIENT_DIR}"
-mkdir -p "${CLIENT_DIR}/data"
-mkdir -p "${CLIENT_DIR}/static"
+if ! mkdir -p "${CLIENT_DIR}/data"; then
+    echo "❌ ERROR: Failed to create ${CLIENT_DIR}/data"
+    echo "   Check permissions on /opt/openwebui/"
+    exit 1
+fi
+if ! mkdir -p "${CLIENT_DIR}/static"; then
+    echo "❌ ERROR: Failed to create ${CLIENT_DIR}/static"
+    echo "   Check permissions on /opt/openwebui/"
+    exit 1
+fi
+echo "✓ Directories created successfully"
 
 # Initialize static assets from defaults if empty
 if [ ! -f "${CLIENT_DIR}/static/favicon.png" ]; then
@@ -142,8 +151,8 @@ IMAGE_TAG=${OPENWEBUI_IMAGE_TAG:-main}
 # - data: SQLite database and user files
 # - static: Custom branding assets (SINGLE mount to backend only, not /app/build)
 docker_cmd="$docker_cmd \
-    -v ${CLIENT_DIR}/data:/app/backend/data \
-    -v ${CLIENT_DIR}/static:/app/backend/open_webui/static \
+    -v \"${CLIENT_DIR}/data\":/app/backend/data \
+    -v \"${CLIENT_DIR}/static\":/app/backend/open_webui/static \
     --restart unless-stopped \
     ghcr.io/imagicrafter/open-webui:${IMAGE_TAG}"
 
