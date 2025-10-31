@@ -85,8 +85,9 @@ if [ -z "$SERVER_TYPE" ]; then
         echo -e "${CYAN}Select server type:${NC}"
         echo -e "  ${GREEN}1${NC}) Test Server (uses 'main' branch - latest development code)"
         echo -e "  ${BLUE}2${NC}) Production Server (uses 'release' branch - stable tested code)"
+        echo -e "  ${YELLOW}3${NC}) Development Server (uses 'feature/volume-mount-prototype' branch - experimental)"
         echo
-        read -p "Enter choice [1 or 2]: " choice
+        read -p "Enter choice [1, 2, or 3]: " choice
         echo
 
         case $choice in
@@ -96,8 +97,11 @@ if [ -z "$SERVER_TYPE" ]; then
             2)
                 SERVER_TYPE="production"
                 ;;
+            3)
+                SERVER_TYPE="development"
+                ;;
             *)
-                echo -e "${RED}❌ Invalid choice. Please enter 1 or 2${NC}"
+                echo -e "${RED}❌ Invalid choice. Please enter 1, 2, or 3${NC}"
                 exit 1
                 ;;
         esac
@@ -111,6 +115,9 @@ if [ -z "$SERVER_TYPE" ]; then
         echo
         echo -e "  ${BLUE}Production server:${NC}"
         echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/main/mt/setup/quick-setup.sh | bash -s -- \"\" \"production\""
+        echo
+        echo -e "  ${YELLOW}Development server (experimental):${NC}"
+        echo "  curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/feature/volume-mount-prototype/mt/setup/quick-setup.sh | bash -s -- \"\" \"development\""
         echo
         echo -e "  ${YELLOW}Or SSH to server first and run interactively:${NC}"
         echo "  ssh root@server-ip"
@@ -132,9 +139,14 @@ case "$SERVER_TYPE" in
         SERVER_TYPE_DISPLAY="Production"
         BRANCH_DISPLAY="release (stable)"
         ;;
+    development|DEVELOPMENT|dev|DEV|d|D)
+        GIT_BRANCH="feature/volume-mount-prototype"
+        SERVER_TYPE_DISPLAY="Development"
+        BRANCH_DISPLAY="feature/volume-mount-prototype (experimental)"
+        ;;
     *)
         echo -e "${RED}❌ Invalid server type: $SERVER_TYPE${NC}"
-        echo "Valid options: test, production"
+        echo "Valid options: test, production, development"
         exit 1
         ;;
 esac
