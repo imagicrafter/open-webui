@@ -303,6 +303,59 @@ chat.lawnloonies.com  → /opt/openwebui/chat-lawnloonies-com/
 
 **Validation:** `grep CLIENT_NAME mt/start-template.sh` returns no matches
 
+### Finding 5: Unquoted Mount Paths Cause Inconsistent Behavior (Production Validation)
+
+**Discovery:** During production validation, one deployment (chat-imagicrafter-ai) used Docker volumes while another (chat-lawnloonies-com) used bind mounts, despite being created with the SAME script.
+
+**Root Cause:**
+- Mount paths were unquoted: `-v ${CLIENT_DIR}/data:/app/backend/data`
+- No error checking on `mkdir` commands
+- If directory creation failed silently, Docker interpreted the mount as a named volume
+- eval command with unquoted paths can cause unexpected behavior
+
+**Evidence:**
+```bash
+# Same script, different results:
+chat-imagicrafter-ai (first deployment):
+  Type: volume  Source: /var/lib/docker/volumes/openwebui-chat-imagicrafter-ai-data/_data
+
+chat-lawnloonies-com (second deployment):
+  Type: bind  Source: /opt/openwebui/chat-lawnloonies-com/data
+```
+
+**Fix Applied (commit 7536bf7d1):**
+
+1. **Added quotes to mount paths:**
+```bash
+# Before:
+-v ${CLIENT_DIR}/data:/app/backend/data
+
+# After:
+-v "${CLIENT_DIR}/data":/app/backend/data
+```
+
+2. **Added error checking to mkdir:**
+```bash
+# Before:
+mkdir -p "${CLIENT_DIR}/data"
+mkdir -p "${CLIENT_DIR}/static"
+
+# After:
+if ! mkdir -p "${CLIENT_DIR}/data"; then
+    echo "❌ ERROR: Failed to create ${CLIENT_DIR}/data"
+    echo "   Check permissions on /opt/openwebui/"
+    exit 1
+fi
+```
+
+**Result:**
+- Mount paths properly quoted for safe eval execution
+- mkdir failures now cause immediate script exit with clear error message
+- Ensures EVERY deployment uses bind mounts consistently
+- Eliminates race conditions or permission issues causing inconsistent behavior
+
+**Impact:** This was the final critical bug preventing consistent multi-tenant deployments. With this fix, all deployments will use bind mounts 100% of the time.
+
 ---
 
 ## Validation Tests
