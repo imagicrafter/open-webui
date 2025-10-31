@@ -1,18 +1,18 @@
 #!/bin/bash
 
 # Multi-Client Open WebUI Template Script
-# Usage: ./start-template.sh CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]
+# Usage: ./start-template.sh SUBDOMAIN PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]
 # FQDN-based container naming for multi-tenant deployments
 
 if [ $# -lt 5 ]; then
-    echo "Usage: $0 CLIENT_NAME PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]"
+    echo "Usage: $0 SUBDOMAIN PORT DOMAIN CONTAINER_NAME FQDN [OAUTH_DOMAINS] [WEBUI_SECRET_KEY]"
     echo "Examples:"
     echo "  $0 chat 8081 chat.client-a.com openwebui-chat-client-a-com chat.client-a.com"
     echo "  $0 chat 8082 localhost:8082 openwebui-localhost-8082 localhost:8082 martins.net SECRET_KEY"
     exit 1
 fi
 
-CLIENT_NAME=$1
+SUBDOMAIN=$1
 PORT=$2
 DOMAIN=$3
 CONTAINER_NAME=$4
@@ -20,8 +20,12 @@ FQDN=$5
 OAUTH_DOMAINS="${6:-martins.net}"  # Default to martins.net if not provided
 WEBUI_SECRET_KEY="${7:-$(openssl rand -base64 32)}"  # Generate if not provided
 
-# Per-client directory for volume mounts
-CLIENT_DIR="/opt/openwebui/${CLIENT_NAME}"
+# Extract CLIENT_ID from CONTAINER_NAME (strip "openwebui-" prefix)
+# This is the unique identifier for this deployment (sanitized FQDN)
+CLIENT_ID="${CONTAINER_NAME#openwebui-}"
+
+# Per-client directory for volume mounts (uses CLIENT_ID for uniqueness)
+CLIENT_DIR="/opt/openwebui/${CLIENT_ID}"
 
 # Legacy Docker volume name (for backward compatibility detection)
 VOLUME_NAME="${CONTAINER_NAME}-data"
@@ -37,7 +41,8 @@ else
     ENVIRONMENT="production"
 fi
 
-echo "Starting Open WebUI for client: ${CLIENT_NAME}"
+echo "Starting Open WebUI for client: ${CLIENT_ID}"
+echo "Subdomain: ${SUBDOMAIN}"
 echo "Container: ${CONTAINER_NAME}"
 echo "Memory Limits: 700MB (hard limit), 600MB (reservation)"
 if [[ "$PORT" != "N/A" ]]; then
@@ -116,13 +121,14 @@ docker_cmd="docker run -d \
     -e ENABLE_OAUTH_SIGNUP=true \
     -e OAUTH_ALLOWED_DOMAINS=${OAUTH_DOMAINS} \
     -e OPENID_PROVIDER_URL=https://accounts.google.com/.well-known/openid-configuration \
-    -e WEBUI_NAME=\"QuantaBase - ${CLIENT_NAME}\" \
+    -e WEBUI_NAME=\"QuantaBase - ${CLIENT_ID}\" \
     -e WEBUI_SECRET_KEY=\"${WEBUI_SECRET_KEY}\" \
     -e WEBUI_URL=\"${REDIRECT_URI%/oauth/google/callback}\" \
     -e ENABLE_VERSION_UPDATE_CHECK=false \
     -e USER_PERMISSIONS_CHAT_CONTROLS=false \
     -e FQDN=\"${FQDN}\" \
-    -e CLIENT_NAME=\"${CLIENT_NAME}\""
+    -e CLIENT_ID=\"${CLIENT_ID}\" \
+    -e SUBDOMAIN=\"${SUBDOMAIN}\""
 
 # Add BASE_URL if set (for nginx proxy mode)
 if [[ -n "$BASE_URL" ]]; then
