@@ -150,7 +150,7 @@ docker_cmd="$docker_cmd \
 eval $docker_cmd
 
 if [ $? -eq 0 ]; then
-    echo "✅ ${CLIENT_NAME} Open WebUI started successfully!"
+    echo "✅ ${CLIENT_ID} Open WebUI started successfully!"
 
     if [ "$NGINX_CONTAINERIZED" = true ]; then
         echo "🌐 Access: https://${DOMAIN}"
@@ -172,6 +172,6 @@ if [ $? -eq 0 ]; then
         echo "3. (Optional) Apply custom branding after container is healthy"
     fi
 else
-    echo "❌ Failed to start container for ${CLIENT_NAME}"
+    echo "❌ Failed to start container for ${CLIENT_ID}"
     exit 1
 fi
