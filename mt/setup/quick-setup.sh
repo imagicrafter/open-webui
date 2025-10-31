@@ -433,8 +433,18 @@ fi
 
 echo -e "${GREEN}✅ System services optimized (saves ~55MB RAM for containers)${NC}"
 
+# Step 8.5: Create OpenWebUI directory structure
+echo -e "${BLUE}[8.5/10] Creating OpenWebUI directory structure...${NC}"
+if mkdir -p /opt/openwebui/defaults; then
+    chown -R "$DEPLOY_USER:$DEPLOY_USER" /opt/openwebui
+    echo -e "${GREEN}✅ Directory structure created at /opt/openwebui${NC}"
+else
+    echo -e "${RED}❌ Failed to create /opt/openwebui directory${NC}"
+    exit 1
+fi
+
 # Step 8.6: Extract default static assets for volume-mounted deployments
-echo -e "${BLUE}[8.6/9] Extracting default static assets...${NC}"
+echo -e "${BLUE}[8.6/10] Extracting default static assets...${NC}"
 echo -e "${CYAN}This prepares branding assets for volume-mounted deployments${NC}"
 
 # Run extraction script as deploy user
