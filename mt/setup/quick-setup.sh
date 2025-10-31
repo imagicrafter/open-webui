@@ -190,15 +190,8 @@ fi
 # Step 2: Add to sudo and docker groups
 echo -e "${BLUE}[2/9] Configuring groups (sudo, docker)...${NC}"
 usermod -aG sudo "$DEPLOY_USER"
-
-# Add to docker group if it exists (Docker pre-installed)
-if getent group docker > /dev/null 2>&1; then
-    usermod -aG docker "$DEPLOY_USER"
-    echo -e "${GREEN}✅ Groups configured (including docker)${NC}"
-else
-    echo -e "${YELLOW}⚠️  Docker group not found - will be configured when Docker is installed${NC}"
-    echo -e "${GREEN}✅ Sudo group configured${NC}"
-fi
+usermod -aG docker "$DEPLOY_USER"
+echo -e "${GREEN}✅ Groups configured${NC}"
 
 # Step 3: Configure passwordless sudo
 echo -e "${BLUE}[3/9] Enabling passwordless sudo...${NC}"
