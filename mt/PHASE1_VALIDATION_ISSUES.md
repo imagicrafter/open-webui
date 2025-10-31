@@ -336,14 +336,17 @@ New file to track proper validation:
 ### Immediate Actions (In Order):
 
 1. ✅ Update quick-setup.sh with development server type
-2. ⏳ Commit changes to feature branch
-3. ⏳ Push to remote
-4. ⏳ Create fresh test droplet
-5. ⏳ Run end-to-end validation with "development" parameter
-6. ⏳ Verify all validation checklist items
-7. ⏳ Update PHASE1_COMPLETION_REPORT.md with warnings
-8. ⏳ Create VALIDATION_CHECKLIST.md
-9. ⏳ Only then mark Phase 1 as truly complete
+2. ✅ Commit changes to feature branch
+3. ✅ Push to remote
+4. ✅ Create fresh test droplet (167.71.94.196)
+5. ✅ Run end-to-end validation with "development" parameter
+6. ✅ Fix permission error (add Step 8.5 to create /opt/openwebui)
+7. ✅ Commit and push permission fix (commit 10a143fcb)
+8. ⏳ Test client-manager deployment with bind mounts
+9. ⏳ Verify all validation checklist items pass
+10. ⏳ Update PHASE1_COMPLETION_REPORT.md with warnings
+11. ⏳ Create VALIDATION_CHECKLIST.md
+12. ⏳ Only then mark Phase 1 as truly complete
 
 ### For Server 147.182.195.2:
 
@@ -354,16 +357,48 @@ New file to track proper validation:
 
 ---
 
+## GitHub CDN Caching Issue Discovered
+
+### Problem
+When testing the DOCKER_IMAGE_TAG fix (commit a033716aa), the server still showed the old error even after the fix was pushed. Investigation revealed GitHub's CDN was serving cached content.
+
+### Root Cause
+`raw.githubusercontent.com` aggressively caches branch-based URLs. Even after pushing new commits, the old content continues to be served for several minutes.
+
+### Solution
+Use commit hash URLs instead of branch names for immediate testing:
+
+```bash
+# ❌ Cached (may be stale):
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/feature/volume-mount-prototype/mt/setup/quick-setup.sh
+
+# ✅ Fresh (always current):
+curl -fsSL https://raw.githubusercontent.com/imagicrafter/open-webui/10a143fcb/mt/setup/quick-setup.sh
+```
+
+### Impact on Testing
+This means **documentation must warn testers** about GitHub CDN caching when testing unreleased features. Users should either:
+1. Use commit hash URLs for immediate testing
+2. Wait 5-10 minutes after pushing for CDN cache to expire
+3. Test by manually cloning the repository instead of curl|bash
+
+---
+
 ## Current Status
 
 - ✅ Issue identified and root cause found
-- ✅ quick-setup.sh fix implemented
+- ✅ quick-setup.sh fix implemented (development server type)
 - ✅ Syntax validation passed
-- ⏳ Changes need to be committed and pushed
-- ⏳ True end-to-end validation pending
+- ✅ Changes committed and pushed
+- ✅ End-to-end validation started (droplet 167.71.94.196)
+- ✅ Permission error discovered and fixed (Step 8.5 added)
+- ✅ Default assets verified (19 files extracted successfully)
+- ✅ GitHub CDN caching issue documented
+- ⏳ Client-manager deployment test pending
+- ⏳ Bind mount verification pending
 - ⏳ Documentation updates pending
 
-**Phase 1 Status:** 🔄 **FIX IN PROGRESS** (not complete until validation passes)
+**Phase 1 Status:** 🔄 **TESTING IN PROGRESS** (not complete until all validation passes)
 
 ---
 
