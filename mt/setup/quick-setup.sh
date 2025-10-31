@@ -231,6 +231,9 @@ case "$SERVER_TYPE" in
     production|PRODUCTION|prod|PROD|p|P)
         DOCKER_IMAGE_TAG="release"
         ;;
+    development|DEVELOPMENT|dev|DEV|d|D)
+        DOCKER_IMAGE_TAG="main"
+        ;;
 esac
 
 # Create .bashrc with environment variables
