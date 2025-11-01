@@ -178,13 +178,29 @@ echo
 # 5. Check last activity timestamp
 echo -e "${BLUE}5. Most Recent Activity${NC}"
 LAST_ACTIVITY=$(run_query "SELECT MAX(updated_at) FROM chat;")
-if [ -n "$LAST_ACTIVITY" ]; then
-    echo "   Last chat activity: $LAST_ACTIVITY"
+if [ -n "$LAST_ACTIVITY" ] && [ "$LAST_ACTIVITY" != "0" ]; then
+    # Check if timestamp is already an epoch (numeric) or datetime string
+    if [[ "$LAST_ACTIVITY" =~ ^[0-9]+$ ]]; then
+        # Already epoch timestamp
+        LAST_EPOCH=$LAST_ACTIVITY
+        # Convert to human readable
+        LAST_ACTIVITY_HR=$(date -d "@$LAST_EPOCH" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -r "$LAST_EPOCH" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+        echo "   Last chat activity: ${LAST_ACTIVITY_HR:-$LAST_ACTIVITY}"
+    else
+        # Datetime string, convert to epoch
+        echo "   Last chat activity: $LAST_ACTIVITY"
+        LAST_EPOCH=$(run_query "SELECT strftime('%s', MAX(updated_at)) FROM chat;")
+    fi
 
     # Calculate time since last activity
-    LAST_EPOCH=$(run_query "SELECT strftime('%s', MAX(updated_at)) FROM chat;")
+    LAST_EPOCH=${LAST_EPOCH:-0}
     NOW_EPOCH=$(date +%s)
-    MINUTES_AGO=$(( ($NOW_EPOCH - $LAST_EPOCH) / 60 ))
+
+    if [ "$LAST_EPOCH" -gt 0 ]; then
+        MINUTES_AGO=$(( ($NOW_EPOCH - $LAST_EPOCH) / 60 ))
+    else
+        MINUTES_AGO=9999
+    fi
 
     if [ "$MINUTES_AGO" -lt 5 ]; then
         echo -e "   ${RED}⚠️  ACTIVE NOW: Last activity $MINUTES_AGO minutes ago!${NC}"
