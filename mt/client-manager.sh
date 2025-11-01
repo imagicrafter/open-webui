@@ -268,7 +268,11 @@ create_new_deployment() {
     fi
 
     # Get domain (optional - auto-detect if empty)
-    echo -n "Enter domain (press Enter for '${default_domain}'): "
+    echo
+    echo "Enter FULL domain (FQDN) including subdomain"
+    echo "  Examples: chat.imagicrafter.com, support.acme-corp.com"
+    echo "  Note: The subdomain '${client_name}' should be part of the FQDN"
+    echo -n "FQDN (press Enter for '${default_domain}'): "
     read domain
 
     # Resolve domain for display
@@ -291,6 +295,27 @@ create_new_deployment() {
         fi
     else
         resolved_domain="$domain"
+
+        # Validate that FQDN starts with the client_name subdomain (unless localhost)
+        if [[ ! "$domain" =~ ^localhost ]] && [[ ! "$domain" =~ ^127\.0\.0\.1 ]]; then
+            if [[ ! "$domain" =~ ^${client_name}\. ]]; then
+                echo ""
+                echo "⚠️  WARNING: FQDN does not start with subdomain '${client_name}.'"
+                echo "   Entered: ${domain}"
+                echo "   Expected: ${client_name}.example.com"
+                echo ""
+                echo "This may cause issues if you deploy multiple subdomains for the same domain."
+                echo "Example collision: Both 'chat' and 'support' subdomains entering 'example.com'"
+                echo "                   would create the same container name 'openwebui-example-com'"
+                echo ""
+                read -p "Continue anyway? (y/N): " continue_anyway
+                if [[ ! "$continue_anyway" =~ ^[Yy]$ ]]; then
+                    echo "Cancelled. Please re-enter the FQDN."
+                    return 1
+                fi
+            fi
+        fi
+
         if [[ "$domain" == localhost* ]] || [[ "$domain" == 127.0.0.1* ]]; then
             redirect_uri="http://${domain}/oauth/google/callback"
             environment="development"
