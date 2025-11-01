@@ -77,20 +77,24 @@ run_query() {
 
 # 1. Check total registered users
 echo -e "${BLUE}1. Registered Users${NC}"
-TOTAL_USERS=$(run_query "SELECT COUNT(*) FROM user;")
-ACTIVE_USERS=$(run_query "SELECT COUNT(*) FROM user WHERE last_active_at IS NOT NULL;")
+TOTAL_USERS=$(run_query "SELECT COUNT(*) FROM user;" 2>/dev/null || echo "0")
+ACTIVE_USERS=$(run_query "SELECT COUNT(*) FROM user WHERE last_active_at IS NOT NULL;" 2>/dev/null || echo "0")
+TOTAL_USERS=${TOTAL_USERS:-0}
+ACTIVE_USERS=${ACTIVE_USERS:-0}
 echo "   Total users: $TOTAL_USERS"
 echo "   Users who have logged in: $ACTIVE_USERS"
 echo
 
 # 2. Check recent activity (last 24 hours)
 echo -e "${BLUE}2. Recent Activity (Last 24 Hours)${NC}"
-RECENT_ACTIVE=$(run_query "SELECT COUNT(DISTINCT user_id) FROM chat WHERE updated_at > datetime('now', '-24 hours');")
+RECENT_ACTIVE=$(run_query "SELECT COUNT(DISTINCT user_id) FROM chat WHERE updated_at > datetime('now', '-24 hours');" 2>/dev/null || echo "0")
+RECENT_ACTIVE=${RECENT_ACTIVE:-0}
 echo "   Users active in last 24h: $RECENT_ACTIVE"
 
 # 3. Check very recent activity (last hour)
 echo -e "${BLUE}3. Very Recent Activity (Last Hour)${NC}"
-HOUR_ACTIVE=$(run_query "SELECT COUNT(DISTINCT user_id) FROM chat WHERE updated_at > datetime('now', '-1 hour');")
+HOUR_ACTIVE=$(run_query "SELECT COUNT(DISTINCT user_id) FROM chat WHERE updated_at > datetime('now', '-1 hour');" 2>/dev/null || echo "0")
+HOUR_ACTIVE=${HOUR_ACTIVE:-0}
 echo "   Users active in last hour: $HOUR_ACTIVE"
 
 if [ "$HOUR_ACTIVE" -gt 0 ]; then
@@ -186,6 +190,11 @@ echo
 
 # Determine safety level
 SAFETY_SCORE=0
+HOUR_ACTIVE=${HOUR_ACTIVE:-0}
+RECENT_ACTIVE=${RECENT_ACTIVE:-0}
+RECENT_LOGS=${RECENT_LOGS:-0}
+MINUTES_AGO=${MINUTES_AGO:-9999}
+
 if [ "$HOUR_ACTIVE" -gt 0 ]; then
     SAFETY_SCORE=$((SAFETY_SCORE + 3))
 fi
