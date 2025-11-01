@@ -66,7 +66,7 @@ echo -e "${GREEN}✅ Volume backed up${NC}"
 
 # 4. Verify backup
 echo "4. Verifying backup..."
-if [ -f "$BACKUP_DIR/${VOLUME_NAME}.tar.gz" ]; then
+if sudo test -f "$BACKUP_DIR/${VOLUME_NAME}.tar.gz"; then
     SIZE=$(sudo du -h "$BACKUP_DIR/${VOLUME_NAME}.tar.gz" | awk '{print $1}')
     echo -e "${GREEN}✅ Backup created: ${VOLUME_NAME}.tar.gz ($SIZE)${NC}"
 else
@@ -76,8 +76,8 @@ fi
 
 # 5. Test backup integrity
 echo "5. Testing backup integrity..."
-if tar tzf "$BACKUP_DIR/${VOLUME_NAME}.tar.gz" >/dev/null 2>&1; then
-    FILE_COUNT=$(tar tzf "$BACKUP_DIR/${VOLUME_NAME}.tar.gz" | wc -l)
+if sudo tar tzf "$BACKUP_DIR/${VOLUME_NAME}.tar.gz" >/dev/null 2>&1; then
+    FILE_COUNT=$(sudo tar tzf "$BACKUP_DIR/${VOLUME_NAME}.tar.gz" | wc -l)
     echo -e "${GREEN}✅ Backup integrity verified ($FILE_COUNT files)${NC}"
 else
     echo -e "${RED}❌ ERROR: Backup corrupted${NC}"
