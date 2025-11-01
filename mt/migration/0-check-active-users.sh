@@ -66,13 +66,66 @@ if [ ! -f "$DB_PATH" ] && ! sudo test -f "$DB_PATH"; then
 fi
 
 # Function to run SQLite query
+# Try multiple methods: Python in container, sqlite3 CLI, or Python on host
 run_query() {
     local query="$1"
-    if [ -r "$DB_PATH" ]; then
-        sqlite3 "$DB_PATH" "$query" 2>/dev/null
-    else
-        sudo sqlite3 "$DB_PATH" "$query" 2>/dev/null
+    local result=""
+
+    # Method 1: Try Python in Docker container (most reliable)
+    result=$(docker exec "$CONTAINER_NAME" python3 -c "
+import sqlite3
+import sys
+try:
+    conn = sqlite3.connect('/app/backend/data/webui.db')
+    cursor = conn.execute(\"\"\"$query\"\"\")
+    for row in cursor:
+        print('|'.join(str(x) if x is not None else '' for x in row))
+    conn.close()
+except Exception as e:
+    sys.exit(1)
+" 2>/dev/null)
+
+    if [ $? -eq 0 ] && [ -n "$result" ]; then
+        echo "$result"
+        return 0
     fi
+
+    # Method 2: Try sqlite3 CLI if available
+    if command -v sqlite3 &>/dev/null; then
+        if [ -r "$DB_PATH" ]; then
+            result=$(sqlite3 "$DB_PATH" "$query" 2>/dev/null)
+        else
+            result=$(sudo sqlite3 "$DB_PATH" "$query" 2>/dev/null)
+        fi
+
+        if [ $? -eq 0 ]; then
+            echo "$result"
+            return 0
+        fi
+    fi
+
+    # Method 3: Try Python on host
+    if command -v python3 &>/dev/null; then
+        result=$(python3 -c "
+import sqlite3
+import sys
+try:
+    conn = sqlite3.connect('$DB_PATH')
+    cursor = conn.execute(\"\"\"$query\"\"\")
+    for row in cursor:
+        print('|'.join(str(x) if x is not None else '' for x in row))
+    conn.close()
+except:
+    sys.exit(1)
+" 2>/dev/null)
+
+        if [ $? -eq 0 ]; then
+            echo "$result"
+            return 0
+        fi
+    fi
+
+    return 1
 }
 
 # 1. Check total registered users
