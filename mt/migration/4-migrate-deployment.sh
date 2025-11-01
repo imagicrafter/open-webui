@@ -211,9 +211,9 @@ fi
 echo "Step 9: Verifying migration..."
 
 # Check mounts
-MOUNT_CHECK=$(docker inspect "$CONTAINER_NAME" --format '{{range .Mounts}}{{.Type}}:{{.Destination}} {{end}}' | grep -c "bind:/app/backend")
+MOUNT_CHECK=$(docker inspect "$CONTAINER_NAME" --format '{{range .Mounts}}{{.Type}}:{{.Destination}}{{println}}{{end}}' | grep -c "^bind:/app/backend")
 if [ "$MOUNT_CHECK" -ge 2 ]; then
-    echo -e "${GREEN}✅ Bind mounts configured correctly (2 mounts found)${NC}"
+    echo -e "${GREEN}✅ Bind mounts configured correctly ($MOUNT_CHECK mounts found)${NC}"
 else
     echo -e "${YELLOW}⚠️  Warning: Expected 2 bind mounts, found $MOUNT_CHECK${NC}"
 fi

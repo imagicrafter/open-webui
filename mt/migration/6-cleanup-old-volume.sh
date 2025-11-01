@@ -33,10 +33,10 @@ if ! docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
 fi
 
 # Verify bind mounts are in use
-BIND_COUNT=$(docker inspect "$CONTAINER_NAME" --format '{{range .Mounts}}{{.Type}} {{end}}' | grep -c "bind")
+BIND_COUNT=$(docker inspect "$CONTAINER_NAME" --format '{{range .Mounts}}{{.Type}}{{println}}{{end}}' | grep -c "^bind$")
 if [ "$BIND_COUNT" -lt 2 ]; then
     echo -e "${RED}❌ ERROR: Container not using bind mounts!${NC}"
-    echo "   Migration may not be complete."
+    echo "   Migration may not be complete. Found $BIND_COUNT bind mount(s)."
     exit 1
 fi
 

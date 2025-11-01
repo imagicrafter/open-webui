@@ -51,9 +51,9 @@ echo
 echo "2. Mount Configuration:"
 docker inspect "$CONTAINER_NAME" --format '{{range .Mounts}}  {{.Type}}: {{.Source}} -> {{.Destination}}{{println}}{{end}}'
 
-BIND_COUNT=$(docker inspect "$CONTAINER_NAME" --format '{{range .Mounts}}{{.Type}} {{end}}' | grep -c "bind")
+BIND_COUNT=$(docker inspect "$CONTAINER_NAME" --format '{{range .Mounts}}{{.Type}}{{println}}{{end}}' | grep -c "^bind$")
 if [ "$BIND_COUNT" -ge 2 ]; then
-    echo -e "   ${GREEN}✅ Bind mounts configured (2 found)${NC}"
+    echo -e "   ${GREEN}✅ Bind mounts configured ($BIND_COUNT found)${NC}"
 else
     echo -e "   ${RED}❌ Expected 2 bind mounts, found $BIND_COUNT${NC}"
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
