@@ -9,34 +9,37 @@
 ssh qbmgr@45.55.182.177
 cd ~/open-webui/mt/migration
 
-# 2. Discover current state (optional but recommended)
+# 2. Check for active users (recommended!)
+bash 0-check-active-users.sh openwebui-chat-lawnloonies-com
+
+# 3. Discover current state (optional but recommended)
 bash 1-discover-deployments.sh
 
-# 3. Backup deployment
+# 4. Backup deployment
 bash 2-backup-deployment.sh openwebui-chat-lawnloonies-com
 
-# 4. Prepare environment (one-time)
+# 5. Prepare environment (one-time)
 bash 3-prepare-environment.sh
 
-# 5. Migrate deployment (~2 minutes downtime)
+# 6. Migrate deployment (~2 minutes downtime)
 bash 4-migrate-deployment.sh \
     openwebui-chat-lawnloonies-com \
     chat.lawnloonies.com \
     chat
 
-# 6. Verify migration
+# 7. Verify migration
 bash 5-verify-migration.sh \
     openwebui-chat-lawnloonies-com \
     chat.lawnloonies.com
 
-# 7. MANUAL TESTING REQUIRED!
+# 8. MANUAL TESTING REQUIRED!
 # - Open: https://chat.lawnloonies.com
 # - Login with existing account
 # - Verify chat history intact
 # - Send test message
 # - Check branding
 
-# 8. After successful verification, cleanup old volume
+# 9. After successful verification, cleanup old volume
 bash 6-cleanup-old-volume.sh openwebui-chat-lawnloonies-com
 ```
 

@@ -48,6 +48,29 @@ bash 6-cleanup-old-volume.sh openwebui-chat-lawnloonies-com
 
 ## Script Reference
 
+### 0-check-active-users.sh
+**Purpose:** Check for active users before migration
+**Output:** Activity report and safety recommendation
+**Risk:** None (read-only)
+**Duration:** < 1 minute
+
+```bash
+bash 0-check-active-users.sh openwebui-chat-lawnloonies-com
+```
+
+**Checks:**
+- Registered users and last login times
+- Recent activity (last 24 hours, last hour)
+- Active sessions
+- Last chat activity timestamp
+- Recent API requests
+- Active network connections
+
+**Safety Recommendations:**
+- 🔴 **NOT SAFE**: Active users in last hour (wait for completion)
+- 🟡 **CAUTION**: Activity in last 24 hours (notify users first)
+- 🟢 **SAFE**: No recent activity (proceed with migration)
+
 ### 1-discover-deployments.sh
 **Purpose:** Document current state of server
 **Output:** Container list, volumes, sizes, branch info
