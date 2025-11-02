@@ -165,14 +165,33 @@ apply_branding_to_host() {
     echo -e "${BLUE}Saving branding to host directory for client: $client_name${NC}"
     echo
 
+    local host_branding_dir="/opt/openwebui/${client_name}/branding"
     local host_static_dir="/opt/openwebui/${client_name}/static"
 
-    # Check if directory exists
+    # Create branding directory if it doesn't exist
+    if [ ! -d "$host_branding_dir" ]; then
+        echo -e "${YELLOW}ℹ${NC}  Creating branding directory: $host_branding_dir"
+        mkdir -p "$host_branding_dir" 2>/dev/null || {
+            echo -e "${RED}❌ Cannot create branding directory${NC}"
+            echo -e "${YELLOW}ℹ${NC}  Try: sudo mkdir -p $host_branding_dir && sudo chown qbmgr:qbmgr $host_branding_dir"
+            return 1
+        }
+    fi
+
+    # Ensure writable
+    if [ ! -w "$host_branding_dir" ]; then
+        echo -e "${YELLOW}⚠${NC}  Branding directory not writable, attempting to fix..."
+        sudo -n chown -R $(whoami):$(whoami) "$host_branding_dir" 2>/dev/null || {
+            echo -e "${RED}❌ Cannot fix permissions${NC}"
+            echo -e "${YELLOW}ℹ${NC}  Run: sudo chown -R qbmgr:qbmgr $host_branding_dir"
+            return 1
+        }
+    fi
+
+    # Check if static directory exists (for verification)
     if [ ! -d "$host_static_dir" ]; then
-        echo -e "${RED}❌ Host static directory does not exist: $host_static_dir${NC}"
-        echo -e "${YELLOW}ℹ${NC}  Create it with: mkdir -p $host_static_dir"
-        echo -e "${YELLOW}ℹ${NC}  Or deploy container first using start-template.sh"
-        return 1
+        echo -e "${YELLOW}⚠${NC}  Host static directory does not exist: $host_static_dir"
+        echo -e "${YELLOW}ℹ${NC}  Container may not be using Phase 1 bind mounts"
     fi
 
     local files_to_copy=(
@@ -195,8 +214,8 @@ apply_branding_to_host() {
     for file in "${files_to_copy[@]}"; do
         if [ -f "$temp_dir/$file" ]; then
             ((total_count++))
-            if cp -f "$temp_dir/$file" "$host_static_dir/$file" 2>/dev/null; then
-                echo -e "${GREEN}✓${NC} $host_static_dir/$file"
+            if cp -f "$temp_dir/$file" "$host_branding_dir/$file" 2>/dev/null; then
+                echo -e "${GREEN}✓${NC} $host_branding_dir/$file"
                 ((success_count++))
             else
                 echo -e "${RED}✗${NC} Failed to copy $file"
@@ -205,12 +224,29 @@ apply_branding_to_host() {
     done
 
     echo
-    echo -e "${GREEN}✅ Branding saved: $success_count/$total_count files copied${NC}"
+    echo -e "${GREEN}✅ Branding saved: $success_count/$total_count files copied to branding directory${NC}"
     echo
-    echo -e "${YELLOW}⚠${NC}  IMPORTANT: Branding saved to host directory"
-    echo -e "${YELLOW}ℹ${NC}  Run post-startup injection to apply branding to container:"
-    echo -e "${BLUE}    mt/setup/lib/inject-branding-post-startup.sh \\${NC}"
-    echo -e "${BLUE}      openwebui-${client_name} ${client_name} ${host_static_dir}${NC}"
+
+    # Automatically run injection script
+    local inject_script="$SCRIPT_DIR/../../lib/inject-branding-post-startup.sh"
+    local container_name="openwebui-${client_name}"
+
+    if [ -f "$inject_script" ]; then
+        echo -e "${BLUE}Running post-startup injection...${NC}"
+        echo
+        if bash "$inject_script" "$container_name" "$client_name" "$host_branding_dir"; then
+            echo
+            echo -e "${GREEN}✅ Branding injected to container successfully!${NC}"
+            echo -e "${BLUE}ℹ${NC}  Branding will persist on container restarts via branding-monitor"
+        else
+            echo
+            echo -e "${YELLOW}⚠${NC}  Injection failed. Container may need to be restarted."
+            echo -e "${BLUE}ℹ${NC}  Manual injection: bash $inject_script $container_name $client_name $host_branding_dir"
+        fi
+    else
+        echo -e "${YELLOW}⚠${NC}  Injection script not found: $inject_script"
+        echo -e "${BLUE}ℹ${NC}  Restart container to apply: docker restart $container_name"
+    fi
     echo
 
     return 0
