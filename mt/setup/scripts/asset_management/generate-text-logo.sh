@@ -254,17 +254,32 @@ apply_branding_to_container() {
         for file in "${files_to_copy[@]}"; do
             if [ -f "$temp_dir/$file" ]; then
                 ((total_count++))
-                if cp "$temp_dir/$file" "${client_dir}/branding/$file" 2>/dev/null; then
+                # Attempt copy with error capture
+                local copy_error=$(cp "$temp_dir/$file" "${client_dir}/branding/$file" 2>&1)
+                if [ $? -eq 0 ]; then
                     echo -e "${GREEN}✓${NC} ${client_dir}/branding/$file"
                     ((success_count++))
                 else
                     echo -e "${YELLOW}⚠${NC} Failed to copy $file to branding directory"
+                    echo -e "${RED}   Error: $copy_error${NC}"
+                    # Try with sudo if permission denied
+                    if echo "$copy_error" | grep -qi "permission denied"; then
+                        echo -e "${BLUE}   Retrying with sudo...${NC}"
+                        if sudo cp "$temp_dir/$file" "${client_dir}/branding/$file" 2>/dev/null; then
+                            echo -e "${GREEN}✓${NC} ${client_dir}/branding/$file (with sudo)"
+                            ((success_count++))
+                        fi
+                    fi
                 fi
             fi
         done
 
         echo
         echo -e "${GREEN}✅ Branding saved: $success_count/$total_count files${NC}"
+
+        # Verify files were actually saved
+        echo -e "${BLUE}ℹ${NC}  Verifying branding directory:"
+        ls -lah "${client_dir}/branding/" | grep -E '\.(png|svg|ico)$' || echo -e "${RED}   No branding files found!${NC}"
         echo
 
         # Use injection script to apply after container is healthy
