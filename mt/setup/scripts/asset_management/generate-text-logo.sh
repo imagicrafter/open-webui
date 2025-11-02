@@ -226,10 +226,13 @@ apply_branding_to_container() {
     fi
 
     if [ "$has_bind_mount" = true ]; then
-        # Phase 1 approach: Copy to host directory, then restart to apply
+        # Phase 1 approach: Save to branding directory, then use injection script
         echo -e "${BLUE}ℹ${NC}  Container uses Phase 1 bind mounts"
-        echo -e "${BLUE}ℹ${NC}  Copying to host directory: ${client_dir}/static/"
+        echo -e "${BLUE}ℹ${NC}  Saving to branding directory: ${client_dir}/branding/"
         echo
+
+        # Create branding directory if it doesn't exist
+        mkdir -p "${client_dir}/branding"
 
         local files_to_copy=(
             "favicon.png"
@@ -251,44 +254,39 @@ apply_branding_to_container() {
         for file in "${files_to_copy[@]}"; do
             if [ -f "$temp_dir/$file" ]; then
                 ((total_count++))
-                if cp "$temp_dir/$file" "${client_dir}/static/$file" 2>/dev/null; then
-                    echo -e "${GREEN}✓${NC} ${client_dir}/static/$file"
+                if cp "$temp_dir/$file" "${client_dir}/branding/$file" 2>/dev/null; then
+                    echo -e "${GREEN}✓${NC} ${client_dir}/branding/$file"
                     ((success_count++))
                 else
-                    echo -e "${YELLOW}⚠${NC} Failed to copy $file to host directory"
+                    echo -e "${YELLOW}⚠${NC} Failed to copy $file to branding directory"
                 fi
             fi
         done
 
-        # Copy favicon to swagger-ui directory
-        if [ -f "$temp_dir/favicon.png" ]; then
-            ((total_count++))
-            if [ -d "${client_dir}/static/swagger-ui" ]; then
-                if cp "$temp_dir/favicon.png" "${client_dir}/static/swagger-ui/favicon.png" 2>/dev/null; then
-                    echo -e "${GREEN}✓${NC} ${client_dir}/static/swagger-ui/favicon.png"
-                    ((success_count++))
-                else
-                    echo -e "${YELLOW}⚠${NC} Failed to copy favicon to swagger-ui"
-                fi
-            else
-                echo -e "${YELLOW}⚠${NC} swagger-ui directory not found in static"
-            fi
-        fi
-
         echo
-        echo -e "${GREEN}✅ Branding saved to host: $success_count/$total_count files${NC}"
+        echo -e "${GREEN}✅ Branding saved: $success_count/$total_count files${NC}"
         echo
 
-        # Restart container to reload static assets from bind mount
-        echo -e "${BLUE}Restarting container to apply branding...${NC}"
-        if docker restart "$container_name" >/dev/null 2>&1; then
-            echo -e "${GREEN}✓${NC} Container restarted successfully"
+        # Use injection script to apply after container is healthy
+        local inject_script="$SCRIPT_DIR/../lib/inject-branding-post-startup.sh"
+        if [ -f "$inject_script" ]; then
+            echo -e "${BLUE}Running post-startup injection...${NC}"
             echo
-            echo -e "${BLUE}ℹ${NC}  Branding persists across restarts (stored on host)"
-            echo -e "${BLUE}ℹ${NC}  Hard refresh browser (Ctrl+Shift+R) to see changes"
+            if bash "$inject_script" "$container_name" "$client_id" "${client_dir}/branding"; then
+                echo
+                echo -e "${GREEN}✅ Branding applied successfully!${NC}"
+                echo -e "${BLUE}ℹ${NC}  Branding persists until next container restart"
+                echo -e "${BLUE}ℹ${NC}  Hard refresh browser (Ctrl+Shift+R) to see changes"
+            else
+                echo
+                echo -e "${YELLOW}⚠${NC} Injection script failed"
+                echo -e "${BLUE}ℹ${NC}  Run manually:"
+                echo -e "${BLUE}    $inject_script $container_name $client_id ${client_dir}/branding${NC}"
+            fi
         else
-            echo -e "${YELLOW}⚠${NC} Failed to restart container"
-            echo -e "${BLUE}ℹ${NC}  Restart manually: docker restart $container_name"
+            echo -e "${YELLOW}⚠${NC} Injection script not found: $inject_script"
+            echo -e "${BLUE}ℹ${NC}  Branding saved but not applied to running container"
+            echo -e "${BLUE}ℹ${NC}  Restart container to apply: docker restart $container_name"
         fi
 
     else
