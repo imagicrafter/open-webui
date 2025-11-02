@@ -3389,8 +3389,21 @@ show_asset_management() {
                 echo "This may take a moment..."
                 echo
 
-                # Call the apply-branding.sh script
-                if bash "$ASSET_SCRIPT_DIR/apply-branding.sh" "$container_name" "$logo_url"; then
+                # Detect if container uses Phase 1 bind mounts
+                local client_id="${container_name#openwebui-}"
+                local apply_mode="container"  # default to legacy mode
+
+                if docker inspect "$container_name" --format '{{range .Mounts}}{{if eq .Destination "/app/backend/open_webui/static"}}true{{end}}{{end}}' 2>/dev/null | grep -q "true"; then
+                    # Phase 1 container - use host mode with client_id
+                    apply_mode="host"
+                    target="$client_id"
+                else
+                    # Legacy container - use container mode
+                    target="$container_name"
+                fi
+
+                # Call the apply-branding.sh script with appropriate mode
+                if bash "$ASSET_SCRIPT_DIR/apply-branding.sh" "$target" "$logo_url" "$apply_mode"; then
                     echo
                     echo "✅ Branding applied successfully!"
                 else
@@ -3573,7 +3586,18 @@ show_asset_management() {
 
                     local default_logo_url="https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/default_logo.png"
 
-                    if bash "$ASSET_SCRIPT_DIR/apply-branding.sh" "$container_name" "$default_logo_url"; then
+                    # Detect if container uses Phase 1 bind mounts
+                    local client_id="${container_name#openwebui-}"
+                    local apply_mode="container"
+
+                    if docker inspect "$container_name" --format '{{range .Mounts}}{{if eq .Destination "/app/backend/open_webui/static"}}true{{end}}{{end}}' 2>/dev/null | grep -q "true"; then
+                        apply_mode="host"
+                        target="$client_id"
+                    else
+                        target="$container_name"
+                    fi
+
+                    if bash "$ASSET_SCRIPT_DIR/apply-branding.sh" "$target" "$default_logo_url" "$apply_mode"; then
                         echo
                         echo "✅ Default branding applied successfully!"
                     else
