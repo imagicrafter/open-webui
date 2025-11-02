@@ -215,101 +215,178 @@ apply_branding_to_container() {
         return 1
     fi
 
-    local files_to_copy=(
-        "favicon.png"
-        "favicon-96x96.png"
-        "favicon-dark.png"
-        "favicon.ico"
-        "favicon.svg"
-        "logo.png"
-        "apple-touch-icon.png"
-        "web-app-manifest-192x192.png"
-        "web-app-manifest-512x512.png"
-        "splash.png"
-        "splash-dark.png"
-    )
+    # Extract client_id from container name
+    local client_id="${container_name#openwebui-}"
+    local client_dir="/opt/openwebui/${client_id}"
 
-    # Container paths to update
-    local backend_static="/app/backend/open_webui/static"
-    local build_dir="/app/build"
-    local build_static="/app/build/static"
-
-    local success_count=0
-    local total_count=0
-
-    # Copy to backend static directory
-    echo -e "${YELLOW}Copying to backend static directory...${NC}"
-    for file in "${files_to_copy[@]}"; do
-        if [ -f "$temp_dir/$file" ]; then
-            ((total_count++))
-            if docker cp "$temp_dir/$file" "$container_name:$backend_static/$file" 2>/dev/null; then
-                echo -e "${GREEN}✓${NC} $backend_static/$file"
-                ((success_count++))
-            else
-                echo -e "${YELLOW}⚠${NC} Failed to copy $file to backend static (may not exist)"
-            fi
-        fi
-    done
-
-    # Copy to build directory
-    echo
-    echo -e "${YELLOW}Copying to build directory...${NC}"
-    for file in favicon.png logo.png; do
-        if [ -f "$temp_dir/$file" ]; then
-            ((total_count++))
-            if docker cp "$temp_dir/$file" "$container_name:$build_dir/$file" 2>/dev/null; then
-                echo -e "${GREEN}✓${NC} $build_dir/$file"
-                ((success_count++))
-            else
-                echo -e "${YELLOW}⚠${NC} Failed to copy $file to build (may not exist)"
-            fi
-        fi
-    done
-
-    # Copy to build/static directory
-    echo
-    echo -e "${YELLOW}Copying to build/static directory...${NC}"
-    for file in "${files_to_copy[@]}"; do
-        if [ -f "$temp_dir/$file" ]; then
-            ((total_count++))
-            if docker cp "$temp_dir/$file" "$container_name:$build_static/$file" 2>/dev/null; then
-                echo -e "${GREEN}✓${NC} $build_static/$file"
-                ((success_count++))
-            else
-                echo -e "${YELLOW}⚠${NC} Failed to copy $file to build/static (may not exist)"
-            fi
-        fi
-    done
-
-    # Copy favicon to swagger-ui directory
-    echo
-    echo -e "${YELLOW}Copying to swagger-ui directory...${NC}"
-    if [ -f "$temp_dir/favicon.png" ]; then
-        ((total_count++))
-        if docker cp "$temp_dir/favicon.png" "$container_name:$backend_static/swagger-ui/favicon.png" 2>/dev/null; then
-            echo -e "${GREEN}✓${NC} $backend_static/swagger-ui/favicon.png"
-            ((success_count++))
-        else
-            echo -e "${YELLOW}⚠${NC} Failed to copy to swagger-ui (may not exist)"
-        fi
+    # Check if using Phase 1 bind mounts
+    local has_bind_mount=false
+    if docker inspect "$container_name" --format '{{range .Mounts}}{{if eq .Destination "/app/backend/open_webui/static"}}true{{end}}{{end}}' | grep -q "true"; then
+        has_bind_mount=true
     fi
 
-    echo
-    echo -e "${GREEN}✅ Branding applied: $success_count/$total_count files copied${NC}"
-    echo
-
-    # Restart container to ensure all static assets are reloaded
-    echo -e "${BLUE}Restarting container to reload static assets...${NC}"
-    if docker restart "$container_name" >/dev/null 2>&1; then
-        echo -e "${GREEN}✓${NC} Container restarted successfully"
+    if [ "$has_bind_mount" = true ]; then
+        # Phase 1 approach: Copy to host directory, then restart to apply
+        echo -e "${BLUE}ℹ${NC}  Container uses Phase 1 bind mounts"
+        echo -e "${BLUE}ℹ${NC}  Copying to host directory: ${client_dir}/static/"
         echo
-        echo -e "${BLUE}ℹ${NC}  Container is restarting (this takes ~10-15 seconds)"
-        echo -e "${BLUE}ℹ${NC}  Hard refresh browser (Ctrl+Shift+R) after container is ready"
-        echo -e "${BLUE}ℹ${NC}  Check status: docker ps | grep $container_name"
+
+        local files_to_copy=(
+            "favicon.png"
+            "favicon-96x96.png"
+            "favicon-dark.png"
+            "favicon.ico"
+            "favicon.svg"
+            "logo.png"
+            "apple-touch-icon.png"
+            "web-app-manifest-192x192.png"
+            "web-app-manifest-512x512.png"
+            "splash.png"
+            "splash-dark.png"
+        )
+
+        local success_count=0
+        local total_count=0
+
+        for file in "${files_to_copy[@]}"; do
+            if [ -f "$temp_dir/$file" ]; then
+                ((total_count++))
+                if cp "$temp_dir/$file" "${client_dir}/static/$file" 2>/dev/null; then
+                    echo -e "${GREEN}✓${NC} ${client_dir}/static/$file"
+                    ((success_count++))
+                else
+                    echo -e "${YELLOW}⚠${NC} Failed to copy $file to host directory"
+                fi
+            fi
+        done
+
+        # Copy favicon to swagger-ui directory
+        if [ -f "$temp_dir/favicon.png" ]; then
+            ((total_count++))
+            if [ -d "${client_dir}/static/swagger-ui" ]; then
+                if cp "$temp_dir/favicon.png" "${client_dir}/static/swagger-ui/favicon.png" 2>/dev/null; then
+                    echo -e "${GREEN}✓${NC} ${client_dir}/static/swagger-ui/favicon.png"
+                    ((success_count++))
+                else
+                    echo -e "${YELLOW}⚠${NC} Failed to copy favicon to swagger-ui"
+                fi
+            else
+                echo -e "${YELLOW}⚠${NC} swagger-ui directory not found in static"
+            fi
+        fi
+
+        echo
+        echo -e "${GREEN}✅ Branding saved to host: $success_count/$total_count files${NC}"
+        echo
+
+        # Restart container to reload static assets from bind mount
+        echo -e "${BLUE}Restarting container to apply branding...${NC}"
+        if docker restart "$container_name" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Container restarted successfully"
+            echo
+            echo -e "${BLUE}ℹ${NC}  Branding persists across restarts (stored on host)"
+            echo -e "${BLUE}ℹ${NC}  Hard refresh browser (Ctrl+Shift+R) to see changes"
+        else
+            echo -e "${YELLOW}⚠${NC} Failed to restart container"
+            echo -e "${BLUE}ℹ${NC}  Restart manually: docker restart $container_name"
+        fi
+
     else
-        echo -e "${YELLOW}⚠${NC} Failed to restart container (manual restart recommended)"
-        echo -e "${BLUE}ℹ${NC}  Restart manually: docker restart $container_name"
+        # Legacy approach: docker cp directly to container
+        echo -e "${YELLOW}⚠${NC}  Container uses legacy volume mounts"
+        echo -e "${YELLOW}⚠${NC}  Branding will be lost on container recreation"
+        echo
+
+        local files_to_copy=(
+            "favicon.png"
+            "favicon-96x96.png"
+            "favicon-dark.png"
+            "favicon.ico"
+            "favicon.svg"
+            "logo.png"
+            "apple-touch-icon.png"
+            "web-app-manifest-192x192.png"
+            "web-app-manifest-512x512.png"
+            "splash.png"
+            "splash-dark.png"
+        )
+
+        local backend_static="/app/backend/open_webui/static"
+        local build_dir="/app/build"
+        local build_static="/app/build/static"
+        local success_count=0
+        local total_count=0
+
+        # Copy to backend static directory
+        echo -e "${YELLOW}Copying to backend static directory...${NC}"
+        for file in "${files_to_copy[@]}"; do
+            if [ -f "$temp_dir/$file" ]; then
+                ((total_count++))
+                if docker cp "$temp_dir/$file" "$container_name:$backend_static/$file" 2>/dev/null; then
+                    echo -e "${GREEN}✓${NC} $backend_static/$file"
+                    ((success_count++))
+                else
+                    echo -e "${YELLOW}⚠${NC} Failed to copy $file to backend static"
+                fi
+            fi
+        done
+
+        # Copy to build directory
+        echo
+        echo -e "${YELLOW}Copying to build directory...${NC}"
+        for file in favicon.png logo.png; do
+            if [ -f "$temp_dir/$file" ]; then
+                ((total_count++))
+                if docker cp "$temp_dir/$file" "$container_name:$build_dir/$file" 2>/dev/null; then
+                    echo -e "${GREEN}✓${NC} $build_dir/$file"
+                    ((success_count++))
+                else
+                    echo -e "${YELLOW}⚠${NC} Failed to copy $file to build"
+                fi
+            fi
+        done
+
+        # Copy to build/static directory
+        echo
+        echo -e "${YELLOW}Copying to build/static directory...${NC}"
+        for file in "${files_to_copy[@]}"; do
+            if [ -f "$temp_dir/$file" ]; then
+                ((total_count++))
+                if docker cp "$temp_dir/$file" "$container_name:$build_static/$file" 2>/dev/null; then
+                    echo -e "${GREEN}✓${NC} $build_static/$file"
+                    ((success_count++))
+                else
+                    echo -e "${YELLOW}⚠${NC} Failed to copy $file to build/static"
+                fi
+            fi
+        done
+
+        # Copy favicon to swagger-ui
+        if [ -f "$temp_dir/favicon.png" ]; then
+            ((total_count++))
+            if docker cp "$temp_dir/favicon.png" "$container_name:$backend_static/swagger-ui/favicon.png" 2>/dev/null; then
+                echo -e "${GREEN}✓${NC} $backend_static/swagger-ui/favicon.png"
+                ((success_count++))
+            else
+                echo -e "${YELLOW}⚠${NC} Failed to copy to swagger-ui"
+            fi
+        fi
+
+        echo
+        echo -e "${GREEN}✅ Branding applied: $success_count/$total_count files${NC}"
+        echo
+
+        # Restart container
+        echo -e "${BLUE}Restarting container...${NC}"
+        if docker restart "$container_name" >/dev/null 2>&1; then
+            echo -e "${GREEN}✓${NC} Container restarted"
+            echo
+            echo -e "${BLUE}ℹ${NC}  Hard refresh browser (Ctrl+Shift+R) to see changes"
+        else
+            echo -e "${YELLOW}⚠${NC} Failed to restart container"
+        fi
     fi
+
     echo
 
     return 0
