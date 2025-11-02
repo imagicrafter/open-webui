@@ -455,6 +455,19 @@ else
     echo -e "${YELLOW}   You can run manually later: bash ~/open-webui/mt/setup/lib/extract-default-static.sh${NC}"
 fi
 
+# Step 8.7: Install branding monitor service
+echo -e "${BLUE}[8.7/10] Installing branding monitor service...${NC}"
+echo -e "${CYAN}This automatically restores custom branding after container restarts${NC}"
+
+if bash "${REPO_PATH}/mt/setup/services/install-branding-monitor.sh" > /tmp/branding-monitor-install.log 2>&1; then
+    echo -e "${GREEN}✅ Branding monitor service installed and started${NC}"
+    echo -e "${CYAN}   Service will automatically inject branding when containers restart${NC}"
+else
+    echo -e "${YELLOW}⚠️  Branding monitor installation failed${NC}"
+    echo -e "${YELLOW}   Check log: /tmp/branding-monitor-install.log${NC}"
+    echo -e "${YELLOW}   You can install manually later: sudo bash ~/open-webui/mt/setup/services/install-branding-monitor.sh${NC}"
+fi
+
 # Step 9: Create welcome message
 echo -e "${BLUE}[9/10] Creating welcome message...${NC}"
 cat > "/home/$DEPLOY_USER/WELCOME.txt" << EOF
@@ -472,6 +485,7 @@ Server Configuration:
   - Repository: ~/open-webui
   - nginx directory: /opt/openwebui-nginx
   - Default assets: /opt/openwebui/defaults/static
+  - Branding monitor: Enabled (auto-injects on restart)
   - Swap: 2GB configured
   - Memory optimized: ~55MB saved (services disabled)
   - Container limits: 700MB per container (supports 2+ containers)
