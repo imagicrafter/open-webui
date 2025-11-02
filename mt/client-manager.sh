@@ -147,6 +147,59 @@ count_security_issues() {
     echo $issues
 }
 
+check_and_start_branding_monitor() {
+    # Check if branding monitor service is running, start it if not
+    # This is critical for automatic branding injection after container restarts
+
+    if ! systemctl is-active --quiet branding-monitor 2>/dev/null; then
+        echo "⚠️  Branding monitor service is not running"
+        echo "    This service automatically restores custom branding after container restarts"
+        echo ""
+        echo -n "Start branding monitor service now? (Y/n): "
+        read start_service
+
+        if [[ ! "$start_service" =~ ^[Nn]$ ]]; then
+            echo ""
+            echo "Starting branding monitor service..."
+
+            # Check if service exists
+            if systemctl list-unit-files | grep -q "branding-monitor.service"; then
+                sudo systemctl start branding-monitor
+
+                # Wait a moment and check if it started successfully
+                sleep 1
+
+                if systemctl is-active --quiet branding-monitor; then
+                    echo "✅ Branding monitor service started successfully"
+                    return 0
+                else
+                    echo "❌ Failed to start branding monitor service"
+                    echo "    Check logs: sudo journalctl -u branding-monitor -n 20"
+                    echo ""
+                    echo -n "Continue anyway? (y/N): "
+                    read continue_anyway
+                    [[ "$continue_anyway" =~ ^[Yy]$ ]] && return 0 || return 1
+                fi
+            else
+                echo "❌ Branding monitor service is not installed"
+                echo "    Run: sudo bash mt/setup/services/install-branding-monitor.sh"
+                echo ""
+                echo -n "Continue anyway? (y/N): "
+                read continue_anyway
+                [[ "$continue_anyway" =~ ^[Yy]$ ]] && return 0 || return 1
+            fi
+        else
+            echo "⚠️  Branding may not persist after container restart without the monitor service"
+            echo ""
+            echo -n "Continue anyway? (y/N): "
+            read continue_anyway
+            [[ "$continue_anyway" =~ ^[Yy]$ ]] && return 0 || return 1
+        fi
+    fi
+
+    return 0
+}
+
 show_main_menu() {
     clear
     echo "╔════════════════════════════════════════╗"
@@ -3284,6 +3337,16 @@ show_asset_management() {
                 echo "║       Apply Branding from URL          ║"
                 echo "╚════════════════════════════════════════╝"
                 echo
+
+                # Check branding monitor service before proceeding
+                if ! check_and_start_branding_monitor; then
+                    echo
+                    echo "Operation cancelled."
+                    echo "Press Enter to continue..."
+                    read
+                    continue
+                fi
+                echo
                 echo "Logo URL format:"
                 echo "  https://8e7b926d-96e0-40e1-b4f0-45f653426723.quantabase.io/<domain>_logo.png"
                 echo
@@ -3349,6 +3412,16 @@ show_asset_management() {
                 echo "║     Generate Custom Text Logo          ║"
                 echo "╚════════════════════════════════════════╝"
                 echo
+
+                # Check branding monitor service before proceeding
+                if ! check_and_start_branding_monitor; then
+                    echo
+                    echo "Operation cancelled."
+                    echo "Press Enter to continue..."
+                    read
+                    continue
+                fi
+
                 echo "Create a custom logo from 1-2 letters."
                 echo "Perfect for client initials or brand abbreviations."
                 echo
@@ -3475,6 +3548,16 @@ show_asset_management() {
                 echo "║      Apply Default QuantaBase Branding ║"
                 echo "╚════════════════════════════════════════╝"
                 echo
+
+                # Check branding monitor service before proceeding
+                if ! check_and_start_branding_monitor; then
+                    echo
+                    echo "Operation cancelled."
+                    echo "Press Enter to continue..."
+                    read
+                    continue
+                fi
+
                 echo "This will apply the default QuantaBase branding to the container."
                 echo
                 echo "Default logo URL:"
@@ -3511,6 +3594,16 @@ show_asset_management() {
                 echo "║       Update Deployment Name           ║"
                 echo "╚════════════════════════════════════════╝"
                 echo
+
+                # Check branding monitor service before proceeding
+                if ! check_and_start_branding_monitor; then
+                    echo
+                    echo "Operation cancelled."
+                    echo "Press Enter to continue..."
+                    read
+                    continue
+                fi
+
                 echo "Current name: $current_webui_name"
                 echo
                 echo "⚠️  This will recreate the container with a new name."
