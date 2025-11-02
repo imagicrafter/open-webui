@@ -234,6 +234,24 @@ apply_branding_to_container() {
         # Create branding directory if it doesn't exist
         mkdir -p "${client_dir}/branding"
 
+        # Ensure proper ownership (fix permission issues if directory was created by root)
+        if [ ! -w "${client_dir}/branding" ]; then
+            echo -e "${YELLOW}⚠${NC}  Branding directory not writable by $(whoami)"
+            echo -e "${BLUE}ℹ${NC}  Attempting to fix ownership..."
+
+            # Try to fix with sudo (will fail silently if no passwordless sudo)
+            if sudo -n chown -R $(whoami):$(whoami) "${client_dir}/branding" 2>/dev/null; then
+                echo -e "${GREEN}✓${NC} Permissions fixed"
+            else
+                # If sudo fails, provide clear instructions
+                echo -e "${RED}❌ Cannot fix permissions automatically${NC}"
+                echo -e "${BLUE}ℹ${NC}  Please run this command manually:"
+                echo -e "${BLUE}     sudo chown -R qbmgr:qbmgr ${client_dir}/branding${NC}"
+                echo -e "${YELLOW}⚠${NC}  Or run the asset management menu with sudo"
+                return 1
+            fi
+        fi
+
         local files_to_copy=(
             "favicon.png"
             "favicon-96x96.png"
