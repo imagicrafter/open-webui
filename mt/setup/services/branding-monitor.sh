@@ -142,10 +142,13 @@ monitor_events() {
     log_info ""
 
     # Listen to Docker events for health status changes
-    # Format: timestamp container_name health_status
+    # Note: The 'health_status' event has status in Action field, not Attributes
+    # Format: timestamp container_name action (where action = "health_status: healthy")
     docker events --filter 'type=container' --filter 'event=health_status' \
-        --format '{{.Time}} {{.Actor.Attributes.name}} {{.Actor.Attributes.health_status}}' |
-    while read -r timestamp container_name health_status; do
+        --format '{{.Time}} {{.Actor.Attributes.name}} {{.Action}}' |
+    while read -r timestamp container_name action; do
+        # Extract health status from action (format: "health_status: healthy")
+        local health_status=$(echo "$action" | awk '{print $NF}')
         process_health_event "$container_name" "$health_status"
     done
 }
