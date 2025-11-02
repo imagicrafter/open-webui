@@ -129,7 +129,7 @@ validate_branding_source() {
     return 0
 }
 
-# Inject branding to volume-mounted directory
+# Inject branding to volume-mounted directory AND container build directories
 inject_branding() {
     local client_static="/opt/openwebui/${CLIENT_NAME}/static"
 
@@ -160,20 +160,40 @@ inject_branding() {
         "web-app-manifest-512x512.png"
     )
 
+    # Copy to host-mounted static directory
     for file in "${branding_files[@]}"; do
         if [ -f "$BRANDING_SOURCE/$file" ]; then
             cp -f "$BRANDING_SOURCE/$file" "$client_static/"
             inject_count=$((inject_count + 1))
-            log_info "  ✓ $file"
+            log_info "  ✓ $file (host)"
+        fi
+    done
+
+    # CRITICAL: Also copy to container's /app/build/static/ (where web server actually serves from)
+    log_info ""
+    log_info "Injecting to container build directories..."
+    local build_inject_count=0
+
+    for file in "${branding_files[@]}"; do
+        if [ -f "$BRANDING_SOURCE/$file" ]; then
+            # Copy to /app/build/static/
+            if docker cp "$BRANDING_SOURCE/$file" "$CONTAINER_NAME:/app/build/static/$file" 2>/dev/null; then
+                build_inject_count=$((build_inject_count + 1))
+                log_info "  ✓ $file (build)"
+            fi
+            # Also copy logo.png and favicon.png to /app/build/ root
+            if [[ "$file" == "logo.png" ]] || [[ "$file" == "favicon.png" ]]; then
+                docker cp "$BRANDING_SOURCE/$file" "$CONTAINER_NAME:/app/build/$file" 2>/dev/null
+            fi
         fi
     done
 
     if [ $inject_count -eq 0 ]; then
-        log_warning "No branding files were injected"
+        log_warning "No branding files were injected to host"
         return 3
     fi
 
-    log_success "Injected $inject_count branding file(s)"
+    log_success "Injected $inject_count file(s) to host, $build_inject_count file(s) to container build"
     return 0
 }
 
