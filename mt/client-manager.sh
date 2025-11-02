@@ -2122,6 +2122,10 @@ manage_single_deployment() {
 
                     # Recreate container with new domains
                     echo "Creating new container with updated domains..."
+
+                    # Extract CLIENT_ID from container name for Phase 1 bind mounts
+                    local client_id="${container_name#openwebui-}"
+                    local client_dir="/opt/openwebui/${client_id}"
                     volume_name="${container_name}-data"
 
                     # Build docker run command based on deployment type
@@ -2147,7 +2151,8 @@ manage_single_deployment() {
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
                             -e CLIENT_NAME="$client_name" \
-                            -v "${volume_name}:/app/backend/data" \
+                            -v "${client_dir}/data:/app/backend/data" \
+                            -v "${client_dir}/static:/app/backend/open_webui/static" \
                             --restart unless-stopped \
                             ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27
                     else
@@ -2172,7 +2177,8 @@ manage_single_deployment() {
                             -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                             -e FQDN="$fqdn" \
                             -e CLIENT_NAME="$client_name" \
-                            -v "${volume_name}:/app/backend/data" \
+                            -v "${client_dir}/data:/app/backend/data" \
+                            -v "${client_dir}/static:/app/backend/open_webui/static" \
                             --restart unless-stopped \
                             ghcr.io/imagicrafter/open-webui@sha256:bdf98b7bf21c32db09522d90f80715af668b2bd8c58cf9d02777940773ab7b27
                     fi
@@ -2298,20 +2304,35 @@ manage_single_deployment() {
                     local new_fqdn=$(echo "$new_redirect_uri" | sed -E 's|https?://||' | sed 's|/oauth/google/callback||')
                     local sanitized_new_fqdn=$(echo "$new_fqdn" | sed 's/\./-/g' | sed 's/:/-/g')
 
-                    old_volume_name="${container_name}-data"
-                    new_container_name="openwebui-${sanitized_new_fqdn}"
-                    new_volume_name="${new_container_name}-data"
+                    # Phase 1: Use client directories instead of Docker volumes
+                    local old_client_id="${container_name#openwebui-}"
+                    local old_client_dir="/opt/openwebui/${old_client_id}"
+                    local new_client_id="${sanitized_new_fqdn}"
+                    local new_client_dir="/opt/openwebui/${new_client_id}"
 
-                    echo "Renaming data volume..."
-                    # Create temporary container to rename volume
-                    docker run --rm -v "${old_volume_name}:/old_data" -v "${new_volume_name}:/new_data" alpine sh -c "cp -a /old_data/. /new_data/" 2>/dev/null
-                    if [ $? -eq 0 ]; then
-                        echo "✅ Data volume copied successfully"
-                        # Remove old volume after successful copy
-                        docker volume rm "${old_volume_name}" 2>/dev/null || echo "Note: Old volume cleanup may require manual removal"
+                    new_container_name="openwebui-${sanitized_new_fqdn}"
+
+                    echo "Moving client directories..."
+                    # Move/rename client directory
+                    if [ -d "$old_client_dir" ]; then
+                        if [ -d "$new_client_dir" ]; then
+                            echo "❌ Target directory $new_client_dir already exists. Operation cancelled."
+                            echo "Press Enter to continue..."
+                            read
+                            continue
+                        fi
+                        mv "$old_client_dir" "$new_client_dir"
+                        if [ $? -eq 0 ]; then
+                            echo "✅ Client directories moved successfully"
+                        else
+                            echo "❌ Failed to move directories. Operation cancelled."
+                            echo "Press Enter to continue..."
+                            read
+                            continue
+                        fi
                     else
-                        echo "❌ Volume copy failed. Creating new container with original volume name..."
-                        new_volume_name="$old_volume_name"
+                        echo "⚠️  Old client directory not found. Creating new directories..."
+                        mkdir -p "${new_client_dir}/data" "${new_client_dir}/static"
                     fi
 
                     # Create new container with new name and domain
@@ -2338,7 +2359,8 @@ manage_single_deployment() {
                         -e USER_PERMISSIONS_CHAT_CONTROLS=false \
                         -e FQDN="$new_fqdn" \
                         -e CLIENT_NAME="$new_client_name" \
-                        -v "${new_volume_name}:/app/backend/data" \
+                        -v "${new_client_dir}/data:/app/backend/data" \
+                        -v "${new_client_dir}/static:/app/backend/open_webui/static" \
                         --restart unless-stopped \
                         ghcr.io/imagicrafter/open-webui:${IMAGE_TAG}
 
@@ -3536,6 +3558,10 @@ show_asset_management() {
                         current_port=$(echo "$ports" | grep -o '0.0.0.0:[0-9]*' | head -1 | cut -d: -f2)
                     fi
 
+                    # Extract CLIENT_ID from container name (strip "openwebui-" prefix)
+                    local client_id="${container_name#openwebui-}"
+                    local client_dir="/opt/openwebui/${client_id}"
+
                     local volume_name="${container_name}-data"
                     local network_name=$(docker inspect "$container_name" --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{end}}' 2>/dev/null)
                     local network_name_str=$(docker network inspect "$network_name" --format '{{.Name}}' 2>/dev/null)
@@ -3579,8 +3605,10 @@ show_asset_management() {
                     [[ -n "$client_name_env" ]] && docker_cmd="$docker_cmd -e CLIENT_NAME=\"$client_name_env\""
                     [[ -n "$database_url" ]] && docker_cmd="$docker_cmd -e DATABASE_URL=\"$database_url\""
 
-                    # Add volume and restart policy
-                    docker_cmd="$docker_cmd -v ${volume_name}:/app/backend/data --restart unless-stopped"
+                    # Add Phase 1 bind mounts for data and static directories
+                    docker_cmd="$docker_cmd -v ${client_dir}/data:/app/backend/data"
+                    docker_cmd="$docker_cmd -v ${client_dir}/static:/app/backend/open_webui/static"
+                    docker_cmd="$docker_cmd --restart unless-stopped"
                     docker_cmd="$docker_cmd ghcr.io/imagicrafter/open-webui:${image_tag}"
 
                     # Execute docker command
@@ -3592,9 +3620,8 @@ show_asset_management() {
                         echo "✅ Deployment name updated successfully!"
                         echo "   New name: $new_webui_name"
                         echo
-                        echo "⚠️  IMPORTANT: Container was recreated from Docker image"
-                        echo "   Custom logos were reset to default"
-                        echo "   You need to re-apply logo branding (Asset Management → Option 1)"
+                        echo "ℹ️  Container recreated with Phase 1 bind mounts"
+                        echo "   Custom logos preserved in: ${client_dir}/static/"
                         echo
                         echo "   Hard refresh browser to see name change"
                     else
