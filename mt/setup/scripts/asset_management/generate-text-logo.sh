@@ -268,7 +268,7 @@ apply_branding_to_container() {
         echo
 
         # Use injection script to apply after container is healthy
-        local inject_script="$SCRIPT_DIR/../lib/inject-branding-post-startup.sh"
+        local inject_script="$SCRIPT_DIR/../../lib/inject-branding-post-startup.sh"
         if [ -f "$inject_script" ]; then
             echo -e "${BLUE}Running post-startup injection...${NC}"
             echo
